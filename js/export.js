@@ -1,6 +1,25 @@
-// Dummy localStorage fallback for demo (replace with backend/fetch if needed)
-function getAttendanceData() {
-    return JSON.parse(localStorage.getItem('employeeData') || '[]');
+// Firebase CDN scripts should be included in HTML, but for clarity, config and init here:
+// (Make sure these scripts are in your HTML head)
+// <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+// <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAQYjOF9YuB5D9LowTyGDP4JbG8cdWBJ88",
+  authDomain: "employeeapp-c948f.firebaseapp.com",
+  databaseURL: "https://employeeapp-c948f-default-rtdb.firebaseio.com",
+  projectId: "employeeapp-c948f",
+  storageBucket: "employeeapp-c948f.appspot.com",
+  messagingSenderId: "546940583535",
+  appId: "1:546940583535:web:3b930ca9f7646d9fe2979a"
+};
+if (!firebase.apps?.length) firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+function getAttendanceData(callback) {
+    db.ref('attendance').once('value').then(snapshot => {
+        const data = snapshot.val() || {};
+        callback(Object.values(data));
+    });
 }
 
 // Group data by Employee ID + Date
@@ -51,54 +70,55 @@ function renderTable(data) {
 }
 
 $(document).ready(function() {
-    let allData = getAttendanceData();
-    renderTable(allData);
+    getAttendanceData(function(allData) {
+        renderTable(allData);
 
-    $('#exportAllBtn').click(function() {
-        const grouped = groupData(allData);
-        if (grouped.length === 0) {
-            alert('No data to export!');
-            return;
-        }
-        let rows = [
-            ['Date', 'Employee Name', 'Punch In Time', 'Punch Out Time', 'Location', 'Location Name'],
-            ...grouped.map(r => [r.date, r.name, r.punchIn, r.punchOut, r.location, r.locationName])
-        ];
-        let worksheet = XLSX.utils.aoa_to_sheet(rows);
-        let workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance');
-        XLSX.writeFile(workbook, 'attendance_all.xlsx');
-    });
-
-    $('#exportFilterBtn').click(function() {
-        const filterId = prompt('Enter Employee ID to export (leave blank for all):');
-        const filterMonth = prompt('Enter Month (YYYY-MM) to export (leave blank for all):');
-        const filterYear = prompt('Enter Year (YYYY) to export (leave blank for all):');
-        let filtered = allData.filter(record => {
-            let match = true;
-            if (filterId && record.id !== filterId) match = false;
-            if (filterMonth) {
-                const recMonth = record.time.slice(0, 7);
-                if (recMonth !== filterMonth) match = false;
+        $('#exportAllBtn').click(function() {
+            const grouped = groupData(allData);
+            if (grouped.length === 0) {
+                alert('No data to export!');
+                return;
             }
-            if (filterYear) {
-                const recYear = record.time.slice(0, 4);
-                if (recYear !== filterYear) match = false;
-            }
-            return match;
+            let rows = [
+                ['Date', 'Employee Name', 'Punch In Time', 'Punch Out Time', 'Location', 'Location Name'],
+                ...grouped.map(r => [r.date, r.name, r.punchIn, r.punchOut, r.location, r.locationName])
+            ];
+            let worksheet = XLSX.utils.aoa_to_sheet(rows);
+            let workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance');
+            XLSX.writeFile(workbook, 'attendance_all.xlsx');
         });
-        const grouped = groupData(filtered);
-        if (grouped.length === 0) {
-            alert('No data to export!');
-            return;
-        }
-        let rows = [
-            ['Date', 'Employee Name', 'Punch In Time', 'Punch Out Time', 'Location', 'Location Name'],
-            ...grouped.map(r => [r.date, r.name, r.punchIn, r.punchOut, r.location, r.locationName])
-        ];
-        let worksheet = XLSX.utils.aoa_to_sheet(rows);
-        let workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance');
-        XLSX.writeFile(workbook, 'attendance_filtered.xlsx');
+
+        $('#exportFilterBtn').click(function() {
+            const filterId = prompt('Enter Employee ID to export (leave blank for all):');
+            const filterMonth = prompt('Enter Month (YYYY-MM) to export (leave blank for all):');
+            const filterYear = prompt('Enter Year (YYYY) to export (leave blank for all):');
+            let filtered = allData.filter(record => {
+                let match = true;
+                if (filterId && record.id !== filterId) match = false;
+                if (filterMonth) {
+                    const recMonth = record.time.slice(0, 7);
+                    if (recMonth !== filterMonth) match = false;
+                }
+                if (filterYear) {
+                    const recYear = record.time.slice(0, 4);
+                    if (recYear !== filterYear) match = false;
+                }
+                return match;
+            });
+            const grouped = groupData(filtered);
+            if (grouped.length === 0) {
+                alert('No data to export!');
+                return;
+            }
+            let rows = [
+                ['Date', 'Employee Name', 'Punch In Time', 'Punch Out Time', 'Location', 'Location Name'],
+                ...grouped.map(r => [r.date, r.name, r.punchIn, r.punchOut, r.location, r.locationName])
+            ];
+            let worksheet = XLSX.utils.aoa_to_sheet(rows);
+            let workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance');
+            XLSX.writeFile(workbook, 'attendance_filtered.xlsx');
+        });
     });
 });
