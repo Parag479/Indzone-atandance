@@ -5,68 +5,74 @@
     <title>Add Employee</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Firebase App (core) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <!-- Firebase Realtime Database -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
     <script>
-    // === GOOGLE SHEETS WEB APP URL ===
-    const SHEET_API_URL = 'https://script.google.com/macros/s/AKfycbwIsdcmzI4R2wK1Cm4zzR02cTEckHeJIcaXFdyb4N-eQoQuoncwhQ2G-PKtcMTSdF8/exec';
+    // Firebase config from user
+    const firebaseConfig = {
+      apiKey: "AIzaSyAQYjOF9YuB5D9LowTyGDP4JbG8cdWBJ88",
+      authDomain: "employeeapp-c948f.firebaseapp.com",
+      databaseURL: "https://employeeapp-c948f-default-rtdb.firebaseio.com",
+      projectId: "employeeapp-c948f",
+      storageBucket: "employeeapp-c948f.appspot.com",
+      messagingSenderId: "546940583535",
+      appId: "1:546940583535:web:3b930ca9f7646d9fe2979a"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // Add employee
+    function addEmployee(id, name, location) {
+      return db.ref('employees/' + id).set({ id, name, location });
+    }
+
+    // Fetch employees
+    function fetchEmployees(callback) {
+      db.ref('employees').on('value', (snapshot) => {
+        const data = snapshot.val() || {};
+        const employees = Object.values(data);
+        callback(employees);
+      });
+    }
 
     $(document).ready(function() {
-        // Fetch employees from Google Sheet
-        function fetchEmployees() {
-            $.get(SHEET_API_URL, function(data) {
-                let employees = [];
-                try {
-                    const arr = JSON.parse(data);
-                    // Skip header row if present
-                    employees = arr.filter(row => row[0] && row[1] && row[0] !== 'ID');
-                } catch (e) { employees = []; }
-                updateList(employees);
+        // Auto-detect location
+        function setLocation() {
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(position) {
+              const loc = `Lat: ${position.coords.latitude}, Lon: ${position.coords.longitude}`;
+              $('#employeeLocation').val(loc);
+            }, function() {
+              $('#employeeLocation').val('Location unavailable');
             });
+          } else {
+            $('#employeeLocation').val('Geolocation not supported');
+          }
         }
+        setLocation();
 
         function updateList(employees) {
             const $list = $('#employeeList');
             $list.empty();
-            employees.forEach((emp) => {
-                $list.append(`<li>
-                    ${emp[0]} - ${emp[1]}
-                </li>`);
+            employees.forEach(emp => {
+                $list.append(`<li>${emp.id} - ${emp.name} - ${emp.location || ''}</li>`);
             });
         }
-
-        fetchEmployees();
+        fetchEmployees(updateList);
 
         $('#addEmployeeForm').submit(function(e) {
             e.preventDefault();
             const id = $('#newEmployeeId').val().trim();
             const name = $('#newEmployeeName').val().trim();
+            const location = $('#employeeLocation').val();
             if (!id || !name) return;
-            // Check for duplicate by fetching current list
-            $.get(SHEET_API_URL, function(data) {
-                let exists = false;
-                try {
-                    const arr = JSON.parse(data);
-                    exists = arr.some(row => row[0] === id);
-                } catch (e) {}
-                if (exists) {
-                    alert('Employee ID already exists!');
-                    return;
-                }
-                // Add employee to Google Sheet
-                $.ajax({
-                    url: SHEET_API_URL,
-                    method: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify({ id, name }),
-                    success: function() {
-                        $('#newEmployeeId').val('');
-                        $('#newEmployeeName').val('');
-                        alert('Employee added!');
-                        fetchEmployees();
-                    },
-                    error: function() {
-                        alert('Error adding employee!');
-                    }
-                });
+            addEmployee(id, name, location).then(() => {
+                alert('Employee added!');
+                $('#newEmployeeId').val('');
+                $('#newEmployeeName').val('');
+                setLocation();
             });
         });
     });
@@ -81,6 +87,8 @@
             <input type="text" id="newEmployeeId" required placeholder="e.g. INZ01">
             <label for="newEmployeeName">Employee Name:</label>
             <input type="text" id="newEmployeeName" required placeholder="e.g. Rahul Sharma">
+            <label for="employeeLocation">Location (auto):</label>
+            <input type="text" id="employeeLocation" readonly placeholder="Detecting...">
             <button type="submit">Add Employee</button>
         </form>
         <h2>Current Employees</h2>
