@@ -6,43 +6,68 @@
     <link rel="stylesheet" href="css/style.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
+    // === GOOGLE SHEETS WEB APP URL ===
+    const SHEET_API_URL = 'https://script.google.com/macros/s/AKfycbwIsdcmzI4R2wK1Cm4zzR02cTEckHeJIcaXFdyb4N-eQoQuoncwhQ2G-PKtcMTSdF8/exec';
+
     $(document).ready(function() {
-        let employees = JSON.parse(localStorage.getItem('employees')) || [];
-        function updateList() {
+        // Fetch employees from Google Sheet
+        function fetchEmployees() {
+            $.get(SHEET_API_URL, function(data) {
+                let employees = [];
+                try {
+                    const arr = JSON.parse(data);
+                    // Skip header row if present
+                    employees = arr.filter(row => row[0] && row[1] && row[0] !== 'ID');
+                } catch (e) { employees = []; }
+                updateList(employees);
+            });
+        }
+
+        function updateList(employees) {
             const $list = $('#employeeList');
             $list.empty();
-            employees.forEach((emp, idx) => {
+            employees.forEach((emp) => {
                 $list.append(`<li>
-                    ${emp.id} - ${emp.name}
-                    <button class="delete-btn" data-idx="${idx}">Delete</button>
+                    ${emp[0]} - ${emp[1]}
                 </li>`);
             });
         }
-        updateList();
+
+        fetchEmployees();
+
         $('#addEmployeeForm').submit(function(e) {
             e.preventDefault();
             const id = $('#newEmployeeId').val().trim();
             const name = $('#newEmployeeName').val().trim();
             if (!id || !name) return;
-            if (employees.some(emp => emp.id === id)) {
-                alert('Employee ID already exists!');
-                return;
-            }
-            employees.push({ id, name });
-            localStorage.setItem('employees', JSON.stringify(employees));
-            updateList();
-            $('#newEmployeeId').val('');
-            $('#newEmployeeName').val('');
-            alert('Employee added!');
-        });
-        // Delete employee
-        $('#employeeList').on('click', '.delete-btn', function() {
-            const idx = $(this).data('idx');
-            if (confirm('Are you sure you want to delete this employee?')) {
-                employees.splice(idx, 1);
-                localStorage.setItem('employees', JSON.stringify(employees));
-                updateList();
-            }
+            // Check for duplicate by fetching current list
+            $.get(SHEET_API_URL, function(data) {
+                let exists = false;
+                try {
+                    const arr = JSON.parse(data);
+                    exists = arr.some(row => row[0] === id);
+                } catch (e) {}
+                if (exists) {
+                    alert('Employee ID already exists!');
+                    return;
+                }
+                // Add employee to Google Sheet
+                $.ajax({
+                    url: SHEET_API_URL,
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ id, name }),
+                    success: function() {
+                        $('#newEmployeeId').val('');
+                        $('#newEmployeeName').val('');
+                        alert('Employee added!');
+                        fetchEmployees();
+                    },
+                    error: function() {
+                        alert('Error adding employee!');
+                    }
+                });
+            });
         });
     });
     </script>
