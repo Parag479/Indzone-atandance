@@ -5,8 +5,7 @@ This project is a simple web application that allows employees to punch in and o
 ## Project Structure
 
 ```
-
-├── src
+punch-in-out-website
 │   ├── index.html        # Main HTML document for the website
 │   ├── css
 │   │   └── style.css     # Styles for the website
