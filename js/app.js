@@ -43,32 +43,24 @@ $(document).ready(function() {
         $('#employeeName').val(selected ? selected.name : '');
     });
 
-    // Location fetch with reverse geocoding
-    function setLocation() {
+    // Fetch location and call callback with (location, locationName)
+    function fetchLocation(callback) {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(function(position) {
-                $('#location').val(
-                    `Lat: ${position.coords.latitude}, Lon: ${position.coords.longitude}`
-                );
+                const loc = `Lat: ${position.coords.latitude}, Lon: ${position.coords.longitude}`;
                 $.get(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}`, function(data) {
-                    $('#locationName').val(
-                        data.address.city || data.address.town || data.address.village || data.address.state || data.display_name || 'Unknown'
-                    );
+                    const locName = data.address.city || data.address.town || data.address.village || data.address.state || data.display_name || 'Unknown';
+                    callback(loc, locName);
                 }).fail(function() {
-                    $('#locationName').val('Unknown');
+                    callback(loc, 'Unknown');
                 });
             }, function() {
-                $('#location').val('Location unavailable');
-                $('#locationName').val('Unknown');
+                callback('Location unavailable', 'Unknown');
             });
         } else {
-            $('#location').val('Geolocation not supported');
-            $('#locationName').val('Unknown');
+            callback('Geolocation not supported', 'Unknown');
         }
     }
-
-    setLocation();
-    $('#employeeId').focus(setLocation);
 
     // Attendance (Punch In/Out) data in Firebase
     function addAttendance(record) {
@@ -89,25 +81,23 @@ $(document).ready(function() {
         const employeeId = $('#employeeId').val();
         const employeeName = $('#employeeName').val();
         const timestamp = new Date();
-        const location = $('#location').val();
-        const locationName = $('#locationName').val();
-
-        if (employeeId && employeeName && location) {
-            addAttendance({
-                id: employeeId,
-                name: employeeName,
-                action: 'Punch In',
-                time: timestamp.toISOString(),
-                location: location,
-                locationName: locationName
-            }).then(() => {
-                alert('Punched In Successfully!');
-                $('#employeeId').val('');
-                $('#employeeName').val('');
-                setLocation();
+        if (employeeId && employeeName) {
+            fetchLocation(function(location, locationName) {
+                addAttendance({
+                    id: employeeId,
+                    name: employeeName,
+                    action: 'Punch In',
+                    time: timestamp.toISOString(),
+                    location: location,
+                    locationName: locationName
+                }).then(() => {
+                    alert('Punched In Successfully!');
+                    $('#employeeId').val('');
+                    $('#employeeName').val('');
+                });
             });
         } else {
-            alert('Please select Employee and wait for location.');
+            alert('Please select Employee.');
         }
     });
 
@@ -115,25 +105,23 @@ $(document).ready(function() {
         const employeeId = $('#employeeId').val();
         const employeeName = $('#employeeName').val();
         const timestamp = new Date();
-        const location = $('#location').val();
-        const locationName = $('#locationName').val();
-
-        if (employeeId && employeeName && location) {
-            addAttendance({
-                id: employeeId,
-                name: employeeName,
-                action: 'Punch Out',
-                time: timestamp.toISOString(),
-                location: location,
-                locationName: locationName
-            }).then(() => {
-                alert('Punched Out Successfully!');
-                $('#employeeId').val('');
-                $('#employeeName').val('');
-                setLocation();
+        if (employeeId && employeeName) {
+            fetchLocation(function(location, locationName) {
+                addAttendance({
+                    id: employeeId,
+                    name: employeeName,
+                    action: 'Punch Out',
+                    time: timestamp.toISOString(),
+                    location: location,
+                    locationName: locationName
+                }).then(() => {
+                    alert('Punched Out Successfully!');
+                    $('#employeeId').val('');
+                    $('#employeeName').val('');
+                });
             });
         } else {
-            alert('Please select Employee and wait for location.');
+            alert('Please select Employee.');
         }
     });
 
