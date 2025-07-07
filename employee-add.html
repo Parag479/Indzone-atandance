@@ -76,15 +76,24 @@
             });
         });
 
-        // Delete employee from Firebase, even if attendance exists (with confirm)
+        // Delete employee from Firebase, and also delete their attendance records if confirmed
         $(document).on('click', '.delete-emp', function() {
             const empId = $(this).data('id');
             db.ref('attendance').once('value').then(snapshot => {
                 const data = snapshot.val() || {};
                 const used = Object.values(data).some(r => r.id === empId);
                 if (used) {
-                    if (confirm('Employee has attendance records! Delete anyway?')) {
-                        db.ref('employees/' + empId).remove();
+                    if (confirm('Employee has attendance records! Delete employee and all their attendance data?')) {
+                        // Delete all attendance records for this employee
+                        const updates = {};
+                        Object.entries(data).forEach(([key, record]) => {
+                            if (record.id === empId) {
+                                updates['attendance/' + key] = null;
+                            }
+                        });
+                        // Delete employee
+                        updates['employees/' + empId] = null;
+                        db.ref().update(updates);
                     }
                 } else if (confirm('Are you sure you want to delete this employee?')) {
                     db.ref('employees/' + empId).remove();
