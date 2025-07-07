@@ -77,12 +77,33 @@ $(document).ready(function() {
         });
     }
 
+    function setPunchButtons(enabled) {
+        $('#punchInBtn, #punchOutBtn').prop('disabled', !enabled);
+    }
+    function showStatus(msg) {
+        if ($('#punchStatus').length === 0) {
+            $('<div id="punchStatus" style="margin:10px 0;color:#007bff;"></div>').insertBefore('#punchForm');
+        }
+        $('#punchStatus').text(msg);
+    }
+    function clearStatus() {
+        $('#punchStatus').remove();
+    }
+
     $('#punchInBtn').click(function() {
         const employeeId = $('#employeeId').val();
         const employeeName = $('#employeeName').val();
         const timestamp = new Date();
         if (employeeId && employeeName) {
+            setPunchButtons(false);
+            showStatus('Fetching location, please wait...');
             fetchLocation(function(location, locationName) {
+                if (!location || location === 'Location unavailable' || location === 'Geolocation not supported') {
+                    alert('Location not available. Please allow location access and try again.');
+                    setPunchButtons(true);
+                    clearStatus();
+                    return;
+                }
                 addAttendance({
                     id: employeeId,
                     name: employeeName,
@@ -94,6 +115,8 @@ $(document).ready(function() {
                     alert('Punched In Successfully!');
                     $('#employeeId').val('');
                     $('#employeeName').val('');
+                    setPunchButtons(true);
+                    clearStatus();
                 });
             });
         } else {
@@ -106,7 +129,15 @@ $(document).ready(function() {
         const employeeName = $('#employeeName').val();
         const timestamp = new Date();
         if (employeeId && employeeName) {
+            setPunchButtons(false);
+            showStatus('Fetching location, please wait...');
             fetchLocation(function(location, locationName) {
+                if (!location || location === 'Location unavailable' || location === 'Geolocation not supported') {
+                    alert('Location not available. Please allow location access and try again.');
+                    setPunchButtons(true);
+                    clearStatus();
+                    return;
+                }
                 addAttendance({
                     id: employeeId,
                     name: employeeName,
@@ -118,6 +149,8 @@ $(document).ready(function() {
                     alert('Punched Out Successfully!');
                     $('#employeeId').val('');
                     $('#employeeName').val('');
+                    setPunchButtons(true);
+                    clearStatus();
                 });
             });
         } else {
