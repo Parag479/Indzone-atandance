@@ -57,7 +57,7 @@
             const $list = $('#employeeList');
             $list.empty();
             employees.forEach(emp => {
-                $list.append(`<li>${emp.id} - ${emp.name} - ${emp.location || ''}</li>`);
+                $list.append(`<li>${emp.id} - ${emp.name} - ${emp.location || ''} <button class="delete-emp" data-id="${emp.id}">Delete</button></li>`);
             });
         }
         fetchEmployees(updateList);
@@ -73,6 +73,21 @@
                 $('#newEmployeeId').val('');
                 $('#newEmployeeName').val('');
                 setLocation();
+            });
+        });
+
+        // Delete employee from Firebase only if not used in attendance
+        $(document).on('click', '.delete-emp', function() {
+            const empId = $(this).data('id');
+            // Check attendance records in Firebase
+            db.ref('attendance').once('value').then(snapshot => {
+                const data = snapshot.val() || {};
+                const used = Object.values(data).some(r => r.id === empId);
+                if (used) {
+                    alert('Cannot delete: Employee has attendance records!');
+                } else if (confirm('Are you sure you want to delete this employee?')) {
+                    db.ref('employees/' + empId).remove();
+                }
             });
         });
     });
