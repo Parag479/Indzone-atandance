@@ -38,16 +38,35 @@ function groupData(data) {
                 punchIn: '',
                 punchOut: '',
                 location: '',
-                locationName: ''
+                locationName: '',
+                hoursWorked: ''
             };
         }
         if (r.action === 'Punch In') {
             grouped[key].punchIn = time;
+            grouped[key].punchInRaw = r.time;
             grouped[key].location = r.location;
             grouped[key].locationName = r.locationName;
         }
         if (r.action === 'Punch Out') {
             grouped[key].punchOut = time;
+            grouped[key].punchOutRaw = r.time;
+        }
+    });
+    // Calculate hours worked
+    Object.values(grouped).forEach(r => {
+        if (r.punchInRaw && r.punchOutRaw) {
+            const inTime = new Date(r.punchInRaw);
+            const outTime = new Date(r.punchOutRaw);
+            const diffMs = outTime - inTime;
+            if (diffMs > 0) {
+                const hours = diffMs / (1000 * 60 * 60);
+                r.hoursWorked = hours.toFixed(2);
+            } else {
+                r.hoursWorked = '';
+            }
+        } else {
+            r.hoursWorked = '';
         }
     });
     return Object.values(grouped);
@@ -65,6 +84,7 @@ function renderTable(data) {
             <td data-label="Punch Out Time">${r.punchOut}</td>
             <td data-label="Location">${r.location}</td>
             <td data-label="Location Name">${r.locationName}</td>
+            <td data-label="Hours Worked">${r.hoursWorked}</td>
         </tr>`);
     });
 }
@@ -80,8 +100,8 @@ $(document).ready(function() {
                 return;
             }
             let rows = [
-                ['Date', 'Employee Name', 'Punch In Time', 'Punch Out Time', 'Location', 'Location Name'],
-                ...grouped.map(r => [r.date, r.name, r.punchIn, r.punchOut, r.location, r.locationName])
+                ['Date', 'Employee Name', 'Punch In Time', 'Punch Out Time', 'Location', 'Location Name', 'Hours Worked'],
+                ...grouped.map(r => [r.date, r.name, r.punchIn, r.punchOut, r.location, r.locationName, r.hoursWorked])
             ];
             let worksheet = XLSX.utils.aoa_to_sheet(rows);
             let workbook = XLSX.utils.book_new();
@@ -112,8 +132,8 @@ $(document).ready(function() {
                 return;
             }
             let rows = [
-                ['Date', 'Employee Name', 'Punch In Time', 'Punch Out Time', 'Location', 'Location Name'],
-                ...grouped.map(r => [r.date, r.name, r.punchIn, r.punchOut, r.location, r.locationName])
+                ['Date', 'Employee Name', 'Punch In Time', 'Punch Out Time', 'Location', 'Location Name', 'Hours Worked'],
+                ...grouped.map(r => [r.date, r.name, r.punchIn, r.punchOut, r.location, r.locationName, r.hoursWorked])
             ];
             let worksheet = XLSX.utils.aoa_to_sheet(rows);
             let workbook = XLSX.utils.book_new();
