@@ -91,6 +91,7 @@ function renderTable(data) {
 
 let currentEmployeeId = null;
 let isAdmin = false;
+const ADMIN_PASSWORD = 'admin@123'; // Change this to your desired admin password
 
 $(document).ready(function() {
     // Prompt for Employee ID at page load
@@ -100,8 +101,16 @@ $(document).ready(function() {
         $('.container').hide();
         return;
     }
-    // Admin logic: if ID is 'admin', show all data and enable Export All
+    // Admin logic: if ID is 'admin', prompt for password
     isAdmin = currentEmployeeId.trim().toLowerCase() === 'admin';
+    if (isAdmin) {
+        const enteredPassword = prompt('Enter admin password:');
+        if (enteredPassword !== ADMIN_PASSWORD) {
+            alert('Incorrect admin password!');
+            $('.container').hide();
+            return;
+        }
+    }
     getAttendanceData(function(allData) {
         if (isAdmin) {
             renderTable(allData);
