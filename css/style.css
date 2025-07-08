@@ -136,7 +136,7 @@ input[type="submit"]:hover, button:hover, .export-link:hover {
 .company-logo {
     display: block;
     margin: 0 auto 20px auto;
-    max-width: 70%;
+    max-width: 40%;
     max-height: 120px;
     border-radius: 10px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
