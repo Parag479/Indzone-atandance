@@ -66,9 +66,9 @@
             e.preventDefault();
             const id = $('#newEmployeeId').val().trim();
             const name = $('#newEmployeeName').val().trim();
-            const location = $('#employeeLocation').val();
+            const location = $('#employeeLocation').val() || "";
             if (!id || !name) return;
-            addEmployee(id, name, location).then(() => {
+            addEmployee(id, name, location || "").then(() => {
                 alert('Employee added!');
                 $('#newEmployeeId').val('');
                 $('#newEmployeeName').val('');
