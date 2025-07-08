@@ -173,4 +173,10 @@ $(document).ready(function() {
             XLSX.writeFile(workbook, 'attendance_all.xlsx');
         });
     });
+    // Hide admin-only elements for non-admins
+    if (!isAdmin) {
+        $('.admin-only').hide();
+    } else {
+        $('.admin-only').show();
+    }
 });
