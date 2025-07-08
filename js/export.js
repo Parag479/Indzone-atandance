@@ -89,33 +89,39 @@ function renderTable(data) {
     });
 }
 
+let currentEmployeeId = null;
+let isAdmin = false;
+
 $(document).ready(function() {
+    // Prompt for Employee ID at page load
+    currentEmployeeId = prompt('Enter your Employee ID to view your attendance:');
+    if (!currentEmployeeId) {
+        alert('Employee ID is required!');
+        $('.container').hide();
+        return;
+    }
+    // Admin logic: if ID is 'admin', show all data and enable Export All
+    isAdmin = currentEmployeeId.trim().toLowerCase() === 'admin';
     getAttendanceData(function(allData) {
-        renderTable(allData);
-
-        $('#exportAllBtn').click(function() {
-            const grouped = groupData(allData);
-            if (grouped.length === 0) {
-                alert('No data to export!');
-                return;
-            }
-            let rows = [
-                ['Date', 'Employee Name', 'Punch In Time', 'Punch Out Time', 'Location', 'Location Name', 'Hours Worked'],
-                ...grouped.map(r => [r.date, r.name, r.punchIn, r.punchOut, r.location, r.locationName, r.hoursWorked])
-            ];
-            let worksheet = XLSX.utils.aoa_to_sheet(rows);
-            let workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance');
-            XLSX.writeFile(workbook, 'attendance_all.xlsx');
-        });
-
+        if (isAdmin) {
+            renderTable(allData);
+            $('#exportAllBtn').show();
+        } else {
+            const myData = allData.filter(r => r.id === currentEmployeeId);
+            renderTable(myData);
+            $('#exportAllBtn').hide();
+        }
         $('#exportFilterBtn').click(function() {
-            const filterId = prompt('Enter Employee ID to export (leave blank for all):');
             const filterMonth = prompt('Enter Month (YYYY-MM) to export (leave blank for all):');
             const filterYear = prompt('Enter Year (YYYY) to export (leave blank for all):');
-            let filtered = allData.filter(record => {
+            let filtered;
+            if (isAdmin) {
+                filtered = allData;
+            } else {
+                filtered = allData.filter(record => record.id === currentEmployeeId);
+            }
+            filtered = filtered.filter(record => {
                 let match = true;
-                if (filterId && record.id !== filterId) match = false;
                 if (filterMonth) {
                     const recMonth = record.time.slice(0, 7);
                     if (recMonth !== filterMonth) match = false;
@@ -139,6 +145,23 @@ $(document).ready(function() {
             let workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance');
             XLSX.writeFile(workbook, 'attendance_filtered.xlsx');
+        });
+        // Only admin can export all data
+        $('#exportAllBtn').off('click').click(function() {
+            if (!isAdmin) return;
+            const grouped = groupData(allData);
+            if (grouped.length === 0) {
+                alert('No data to export!');
+                return;
+            }
+            let rows = [
+                ['Date', 'Employee Name', 'Punch In Time', 'Punch Out Time', 'Location', 'Location Name', 'Hours Worked'],
+                ...grouped.map(r => [r.date, r.name, r.punchIn, r.punchOut, r.location, r.locationName, r.hoursWorked])
+            ];
+            let worksheet = XLSX.utils.aoa_to_sheet(rows);
+            let workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance');
+            XLSX.writeFile(workbook, 'attendance_all.xlsx');
         });
     });
 });
