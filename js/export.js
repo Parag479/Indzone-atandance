@@ -327,36 +327,54 @@ $(document).ready(function() {
         const reason = $('#leaveReason').val();
         const fileInput = $('#leaveProof')[0];
         if (!fromDate || !toDate || !reason) return alert('All fields required!');
-        fetchEmployeeName(currentEmployeeId, function(empName) {
-            // Handle file upload if present
-            const file = fileInput && fileInput.files && fileInput.files[0];
-            if (file) {
-                const storageRef = firebase.storage().ref('leaveProofs/' + Date.now() + '_' + file.name);
-                storageRef.put(file).then(snapshot => {
-                    snapshot.ref.getDownloadURL().then(url => {
-                        saveLeave(empName, url);
+        // Prevent duplicate leave for same date range
+        fetchLeaves(function(leaves) {
+            const userLeaves = leaves.filter(l => l.employeeId === currentEmployeeId);
+            const overlap = userLeaves.some(l => {
+                // Check if date ranges overlap
+                const lFrom = new Date(l.fromDate);
+                const lTo = new Date(l.toDate);
+                const fFrom = new Date(fromDate);
+                const fTo = new Date(toDate);
+                return (
+                    (fFrom <= lTo && fTo >= lFrom)
+                );
+            });
+            if (overlap) {
+                alert('You have already applied for leave in this date range.');
+                return;
+            }
+            fetchEmployeeName(currentEmployeeId, function(empName) {
+                // Handle file upload if present
+                const file = fileInput && fileInput.files && fileInput.files[0];
+                if (file) {
+                    const storageRef = firebase.storage().ref('leaveProofs/' + Date.now() + '_' + file.name);
+                    storageRef.put(file).then(snapshot => {
+                        snapshot.ref.getDownloadURL().then(url => {
+                            saveLeave(empName, url);
+                        });
                     });
-                });
-            } else {
-                saveLeave(empName, '');
-            }
-            function saveLeave(empName, proofUrl) {
-                const leaveObj = {
-                    employeeId: currentEmployeeId,
-                    employeeName: empName,
-                    fromDate,
-                    toDate,
-                    reason,
-                    proofUrl,
-                    status: 'Pending',
-                    appliedAt: new Date().toISOString()
-                };
-                applyLeave(leaveObj, function() {
-                    alert('Leave applied!');
-                    $('#leaveForm')[0].reset();
-                    loadLeaves(); // Always reload leaves for both admin and employee
-                });
-            }
+                } else {
+                    saveLeave(empName, '');
+                }
+                function saveLeave(empName, proofUrl) {
+                    const leaveObj = {
+                        employeeId: currentEmployeeId,
+                        employeeName: empName,
+                        fromDate,
+                        toDate,
+                        reason,
+                        proofUrl,
+                        status: 'Pending',
+                        appliedAt: new Date().toISOString()
+                    };
+                    applyLeave(leaveObj, function() {
+                        alert('Leave applied!');
+                        $('#leaveForm')[0].reset();
+                        loadLeaves(); // Always reload leaves for both admin and employee
+                    });
+                }
+            });
         });
     });
 
