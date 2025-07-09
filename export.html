@@ -33,10 +33,41 @@
                             <th>Location</th>
                             <th>Location Name</th>
                             <th>Worked Hours</th>
+                            <th>Status</th>
                         </tr>
                     </thead>
                     <tbody>
                         <!-- Data will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div id="leaveSection" style="margin-top:40px;">
+            <h2>Leave Application</h2>
+            <form id="leaveForm" style="max-width:400px;margin:auto;">
+                <label for="leaveFrom">From Date:</label>
+                <input type="date" id="leaveFrom" required>
+                <label for="leaveTo">To Date:</label>
+                <input type="date" id="leaveTo" required>
+                <label for="leaveReason">Reason:</label>
+                <input type="text" id="leaveReason" required placeholder="Reason for leave">
+                <button type="submit">Apply Leave</button>
+            </form>
+            <h2 style="margin-top:30px;">Leave Requests</h2>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Employee ID</th>
+                            <th>Employee Name</th>
+                            <th>From</th>
+                            <th>To</th>
+                            <th>Reason</th>
+                            <th>Status/Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaveRecords">
+                        <!-- Leave data will be loaded here -->
                     </tbody>
                 </table>
             </div>

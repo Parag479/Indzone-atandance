@@ -72,11 +72,60 @@ function groupData(data) {
     return Object.values(grouped);
 }
 
+function getDayStatus(dateStr, hoursWorked, punchIn, punchOut) {
+    const dateObj = new Date(dateStr);
+    const isSunday = dateObj.getDay() === 0;
+    if (isSunday) return 'Holiday';
+    if (punchIn && punchOut && parseFloat(hoursWorked) >= 8) return 'Present';
+    if (punchIn && punchOut && parseFloat(hoursWorked) < 8) return 'Half Day';
+    return '';
+}
+
+// --- Leave System ---
+function renderLeaveTable(leaves, isAdmin) {
+    const $tbody = $('#leaveRecords tbody');
+    $tbody.empty();
+    leaves.forEach(l => {
+        let actionHtml = '';
+        if (isAdmin && l.status === 'Pending') {
+            actionHtml = `<button class="accept-leave" data-key="${l.key}">Accept</button> <button class="reject-leave" data-key="${l.key}">Reject</button>`;
+        } else {
+            actionHtml = l.status;
+        }
+        $tbody.append(`<tr>
+            <td>${l.employeeId}</td>
+            <td>${l.employeeName}</td>
+            <td>${l.fromDate}</td>
+            <td>${l.toDate}</td>
+            <td>${l.reason}</td>
+            <td>${actionHtml}</td>
+        </tr>`);
+    });
+}
+
+function fetchLeaves(callback) {
+    db.ref('leaves').once('value').then(snapshot => {
+        const data = snapshot.val() || {};
+        // Add key for updating
+        const leaves = Object.entries(data).map(([key, val]) => ({...val, key}));
+        callback(leaves);
+    });
+}
+
+function applyLeave(leaveObj, callback) {
+    db.ref('leaves').push(leaveObj).then(callback);
+}
+
+function updateLeaveStatus(key, status, callback) {
+    db.ref('leaves/' + key + '/status').set(status).then(callback);
+}
+
 function renderTable(data) {
     const grouped = groupData(data);
     const $tbody = $('#attendanceRecords tbody');
     $tbody.empty();
     grouped.forEach(r => {
+        const status = getDayStatus(r.date, r.hoursWorked, r.punchIn, r.punchOut);
         $tbody.append(`<tr>
             <td data-label="Date">${r.date}</td>
             <td data-label="Employee Name">${r.name}</td>
@@ -85,6 +134,7 @@ function renderTable(data) {
             <td data-label="Location">${r.location}</td>
             <td data-label="Location Name">${r.locationName}</td>
             <td data-label="Hours Worked">${r.hoursWorked}</td>
+            <td data-label="Status">${status}</td>
         </tr>`);
     });
 }
@@ -147,8 +197,8 @@ $(document).ready(function() {
                 return;
             }
             let rows = [
-                ['Date', 'Employee Name', 'Punch In Time', 'Punch Out Time', 'Location', 'Location Name', 'Hours Worked'],
-                ...grouped.map(r => [r.date, r.name, r.punchIn, r.punchOut, r.location, r.locationName, r.hoursWorked])
+                ['Date', 'Employee Name', 'Punch In Time', 'Punch Out Time', 'Location', 'Location Name', 'Hours Worked', 'Status'],
+                ...grouped.map(r => [r.date, r.name, r.punchIn, r.punchOut, r.location, r.locationName, r.hoursWorked, getDayStatus(r.date, r.hoursWorked, r.punchIn, r.punchOut)])
             ];
             let worksheet = XLSX.utils.aoa_to_sheet(rows);
             let workbook = XLSX.utils.book_new();
@@ -164,8 +214,8 @@ $(document).ready(function() {
                 return;
             }
             let rows = [
-                ['Date', 'Employee Name', 'Punch In Time', 'Punch Out Time', 'Location', 'Location Name', 'Hours Worked'],
-                ...grouped.map(r => [r.date, r.name, r.punchIn, r.punchOut, r.location, r.locationName, r.hoursWorked])
+                ['Date', 'Employee Name', 'Punch In Time', 'Punch Out Time', 'Location', 'Location Name', 'Hours Worked', 'Status'],
+                ...grouped.map(r => [r.date, r.name, r.punchIn, r.punchOut, r.location, r.locationName, r.hoursWorked, getDayStatus(r.date, r.hoursWorked, r.punchIn, r.punchOut)])
             ];
             let worksheet = XLSX.utils.aoa_to_sheet(rows);
             let workbook = XLSX.utils.book_new();
@@ -173,6 +223,52 @@ $(document).ready(function() {
             XLSX.writeFile(workbook, 'attendance_all.xlsx');
         });
     });
+
+    // Leave form submit
+    $('#leaveForm').submit(function(e) {
+        e.preventDefault();
+        const fromDate = $('#leaveFrom').val();
+        const toDate = $('#leaveTo').val();
+        const reason = $('#leaveReason').val();
+        if (!fromDate || !toDate || !reason) return alert('All fields required!');
+        const leaveObj = {
+            employeeId: currentEmployeeId,
+            employeeName: isAdmin ? 'Admin' : '', // Optionally fetch name
+            fromDate,
+            toDate,
+            reason,
+            status: 'Pending',
+            appliedAt: new Date().toISOString()
+        };
+        applyLeave(leaveObj, function() {
+            alert('Leave applied!');
+            $('#leaveForm')[0].reset();
+            if (isAdmin) loadLeaves();
+        });
+    });
+
+    function loadLeaves() {
+        fetchLeaves(function(leaves) {
+            if (!isAdmin) {
+                leaves = leaves.filter(l => l.employeeId === currentEmployeeId);
+            }
+            renderLeaveTable(leaves, isAdmin);
+        });
+    }
+
+    // Initial load of leave table
+    loadLeaves();
+
+    // Accept/Reject leave (admin only)
+    $(document).on('click', '.accept-leave', function() {
+        const key = $(this).data('key');
+        updateLeaveStatus(key, 'Accepted', loadLeaves);
+    });
+    $(document).on('click', '.reject-leave', function() {
+        const key = $(this).data('key');
+        updateLeaveStatus(key, 'Rejected', loadLeaves);
+    });
+
     // Hide admin-only elements for non-admins
     if (!isAdmin) {
         $('.admin-only').hide();
