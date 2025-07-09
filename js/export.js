@@ -92,14 +92,31 @@ function getLeaveDays(fromDate, toDate) {
 }
 
 function renderLeaveTable(leaves, isAdmin) {
-    const $tbody = $('#leaveRecords tbody');
+    const $tbody = $('#leaveRecords');
+    if ($tbody.length === 0) {
+        alert('Leave table not found on page! Please check export.html markup.');
+        console.error('Leave table not found: #leaveRecords');
+        return;
+    }
     $tbody.empty();
+    console.log('Rendering leaves:', leaves.length, 'isAdmin:', isAdmin);
+    if (leaves.length === 0) {
+        $tbody.append('<tr><td colspan="8" style="text-align:center;color:#888;">No leave requests found.</td></tr>');
+    }
     leaves.forEach(l => {
         let actionHtml = '';
-        if (isAdmin && l.status === 'Pending') {
-            actionHtml = `<button class="accept-leave" data-key="${l.key}">Accept</button> <button class="reject-leave" data-key="${l.key}">Reject</button>`;
+        let statusBadge = '';
+        if (l.status === 'Pending') statusBadge = '<span style="color:#fff;background:#E70000;padding:2px 8px;border-radius:8px;font-weight:bold;">Pending</span>';
+        else if (l.status === 'Accepted') statusBadge = '<span style="color:#fff;background:#28a745;padding:2px 8px;border-radius:8px;font-weight:bold;">Accepted</span>';
+        else if (l.status === 'Rejected') statusBadge = '<span style="color:#fff;background:#003F8C;padding:2px 8px;border-radius:8px;font-weight:bold;">Rejected</span>';
+        if (isAdmin) {
+            actionHtml = `<select class="leave-status-dropdown" data-key="${l.key}" style="padding:4px 8px;border-radius:5px;">
+                <option value="Pending"${l.status==='Pending'?' selected':''}>Pending</option>
+                <option value="Accepted"${l.status==='Accepted'?' selected':''}>Accepted</option>
+                <option value="Rejected"${l.status==='Rejected'?' selected':''}>Rejected</option>
+            </select>`;
         } else {
-            actionHtml = l.status;
+            actionHtml = statusBadge;
         }
         let proofHtml = l.proofUrl ? `<a href="${l.proofUrl}" target="_blank">View</a>` : '';
         let days = getLeaveDays(l.fromDate, l.toDate);
@@ -114,6 +131,12 @@ function renderLeaveTable(leaves, isAdmin) {
             <td>${actionHtml}</td>
         </tr>`);
     });
+    // Heading update
+    if (isAdmin) {
+        $('#leaveSection h2').last().text('All Leave Requests (Admin)');
+    } else {
+        $('#leaveSection h2').last().text('My Leave Requests');
+    }
 }
 
 function fetchLeaves(callback) {
@@ -171,6 +194,10 @@ function fetchEmployeeName(id, callback) {
     });
 }
 
+function setUserInfoBar(id, name) {
+    $('#userInfoBar').text(`ID: ${id} | Name: ${name}`).show();
+}
+
 $(document).ready(function() {
     // Prompt for Employee ID at page load
     currentEmployeeId = prompt('Enter your Employee ID to view your attendance:');
@@ -198,6 +225,8 @@ $(document).ready(function() {
             renderTable(myData);
             $('#exportAllBtn').hide();
         }
+        // Always load leaves after attendance table
+        loadLeaves();
         $('#exportFilterBtn').click(function() {
             const filterMonth = prompt('Enter Month (YYYY-MM) to export (leave blank for all):');
             const filterYear = prompt('Enter Year (YYYY) to export (leave blank for all):');
@@ -252,6 +281,15 @@ $(document).ready(function() {
         });
     });
 
+    // After login, show user info bar
+    if (isAdmin) {
+        setUserInfoBar('admin', 'Admin');
+    } else {
+        fetchEmployeeName(currentEmployeeId, function(empName) {
+            setUserInfoBar(currentEmployeeId, empName || '');
+        });
+    }
+
     // Leave form submit
     $('#leaveForm').off('submit').on('submit', function(e) {
         e.preventDefault();
@@ -287,7 +325,7 @@ $(document).ready(function() {
                 applyLeave(leaveObj, function() {
                     alert('Leave applied!');
                     $('#leaveForm')[0].reset();
-                    if (isAdmin) loadLeaves();
+                    loadLeaves(); // Always reload leaves for both admin and employee
                 });
             }
         });
@@ -295,24 +333,28 @@ $(document).ready(function() {
 
     function loadLeaves() {
         fetchLeaves(function(leaves) {
+            // Admin sees all, employee sees only own
+            let displayLeaves = leaves;
             if (!isAdmin) {
-                leaves = leaves.filter(l => l.employeeId === currentEmployeeId);
+                displayLeaves = leaves.filter(l => l.employeeId === currentEmployeeId);
             }
-            renderLeaveTable(leaves, isAdmin);
+            console.log('Rendering leaves:', displayLeaves.length, 'isAdmin:', isAdmin);
+            renderLeaveTable(displayLeaves, isAdmin);
+            showCurrentLeaveNotice(displayLeaves);
         });
     }
 
     // Initial load of leave table
-    loadLeaves();
+    // loadLeaves(); // This line is removed as per the edit hint.
 
-    // Accept/Reject leave (admin only)
-    $(document).on('click', '.accept-leave', function() {
+    // Accept/Reject leave (admin only) replaced with dropdown
+    $(document).off('change', '.leave-status-dropdown').on('change', '.leave-status-dropdown', function() {
         const key = $(this).data('key');
-        updateLeaveStatus(key, 'Accepted', loadLeaves);
-    });
-    $(document).on('click', '.reject-leave', function() {
-        const key = $(this).data('key');
-        updateLeaveStatus(key, 'Rejected', loadLeaves);
+        const newStatus = $(this).val();
+        updateLeaveStatus(key, newStatus, function() {
+            alert('Leave status updated to ' + newStatus);
+            loadLeaves();
+        });
     });
 
     // Hide admin-only elements for non-admins
@@ -320,5 +362,34 @@ $(document).ready(function() {
         $('.admin-only').hide();
     } else {
         $('.admin-only').show();
+    }
+
+    // Show/hide leave form based on admin
+    if (!isAdmin) {
+        $('#leaveForm').show();
+    } else {
+        $('#leaveForm').hide();
+    }
+
+    function isCurrentLeave(leave) {
+        if (leave.status !== 'Accepted') return false;
+        if (!leave.fromDate || !leave.toDate) return false;
+        const today = new Date();
+        const from = new Date(leave.fromDate);
+        const to = new Date(leave.toDate);
+        return today >= from && today <= to;
+    }
+
+    function showCurrentLeaveNotice(leaves) {
+        if (isAdmin) {
+            $('#currentLeaveNotice').hide();
+            return;
+        }
+        const active = leaves.find(isCurrentLeave);
+        if (active) {
+            $('#currentLeaveNotice').text(`You are on leave from ${active.fromDate} to ${active.toDate} (${getLeaveDays(active.fromDate, active.toDate)} days).`).show();
+        } else {
+            $('#currentLeaveNotice').hide();
+        }
     }
 });

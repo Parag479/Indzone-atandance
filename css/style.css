@@ -171,6 +171,76 @@ input[type="submit"]:hover, button:hover, .export-link:hover {
     color: #fff;
 }
 
+/* Leave Requests Table Styling */
+#leaveSection table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 18px;
+    background: #fff;
+    box-shadow: 0 2px 12px #e0e6f1;
+    border-radius: 10px;
+    overflow: hidden;
+}
+#leaveSection th, #leaveSection td {
+    border: 1px solid #e0e6f1;
+    padding: 12px 10px;
+    text-align: center;
+    font-size: 1rem;
+}
+#leaveSection th {
+    background: #003F8C;
+    color: #fff;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+#leaveSection tr:nth-child(even) {
+    background: #f4f6fb;
+}
+#leaveSection tr:hover {
+    background: #e6f0fa;
+}
+#leaveSection .leave-status-dropdown {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid #003F8C;
+    font-size: 1rem;
+    background: #fff;
+    color: #003F8C;
+    font-weight: 600;
+    transition: border 0.2s;
+}
+#leaveSection .leave-status-dropdown:focus {
+    border: 2px solid #E70000;
+    outline: none;
+}
+#leaveSection a {
+    color: #E70000;
+    text-decoration: underline;
+    font-weight: 500;
+}
+#leaveSection a:hover {
+    color: #003F8C;
+}
+#leaveSection .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 0.98rem;
+}
+#leaveSection .badge-pending {
+    background: #E70000;
+    color: #fff;
+}
+#leaveSection .badge-accepted {
+    background: #28a745;
+    color: #fff;
+}
+#leaveSection .badge-rejected {
+    background: #003F8C;
+    color: #fff;
+}
+
 /* Responsive Design */
 @media (max-width: 700px) {
     .container {

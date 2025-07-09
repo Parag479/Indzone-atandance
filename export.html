@@ -11,6 +11,7 @@
     <script src="js/export.js" defer></script>
 </head>
 <body>
+    <div id="userInfoBar" style="position:absolute;top:18px;right:32px;font-weight:bold;color:#003F8C;background:#f0f4fa;padding:8px 18px;border-radius:8px;box-shadow:0 2px 8px #e0e6f1;z-index:10;display:none;"></div>
     <div class="container">
         <img src="ind_logo.png" alt="Company Logo" class="company-logo">
         <h1>Attendance Export Panel</h1>
@@ -44,7 +45,7 @@
         </div>
         <div id="leaveSection" style="margin-top:40px;">
             <h2>Leave Application</h2>
-            <form id="leaveForm" style="max-width:400px;margin:auto;">
+            <form id="leaveForm" style="max-width:400px;margin:auto; display:none;">
                 <label for="leaveFrom">From Date:</label>
                 <input type="date" id="leaveFrom" required>
                 <label for="leaveTo">To Date:</label>
@@ -55,6 +56,7 @@
                 <input type="file" id="leaveProof" accept="image/*,application/pdf">
                 <button type="submit">Apply Leave</button>
             </form>
+            <div id="currentLeaveNotice" style="display:none; color:#E70000; font-weight:bold; text-align:center; margin:20px 0;"></div>
             <h2 style="margin-top:30px;">Leave Requests</h2>
             <div class="table-responsive">
                 <table>
