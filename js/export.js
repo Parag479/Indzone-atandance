@@ -162,6 +162,42 @@ function renderTable(data) {
     $tbody.empty();
     // Get all unique dates in the data
     let allDates = grouped.map(r => r.date);
+    // Add leave days as attendance rows (Status: Leave)
+    if (typeof fetchLeaves === 'function') {
+        // Synchronous hack: fetchLeaves is async, so we use a workaround
+        // We'll use localStorage cache for last leaves if available
+        let leavesCache = window._leavesCache || [];
+        if (leavesCache.length === 0) {
+            fetchLeaves(function(leaves) {
+                window._leavesCache = leaves;
+                renderTable(data); // recall with cache
+            });
+            return;
+        }
+        const user = JSON.parse(localStorage.getItem('user') || 'null');
+        const acceptedLeaves = leavesCache.filter(l => l.employeeId === user.id && l.status === 'Accepted');
+        acceptedLeaves.forEach(lv => {
+            const from = new Date(lv.fromDate);
+            const to = new Date(lv.toDate);
+            for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+                const iso = d.toISOString().slice(0, 10);
+                if (!allDates.includes(iso)) {
+                    grouped.push({
+                        date: iso,
+                        name: '',
+                        punchIn: '',
+                        punchOut: '',
+                        location: '',
+                        locationName: '',
+                        hoursWorked: '',
+                        status: 'Leave',
+                        isLeave: true
+                    });
+                    allDates.push(iso);
+                }
+            }
+        });
+    }
     // If viewing as employee, fill missing Sundays for the month
     if (allDates.length > 0) {
         const minDate = new Date(Math.min(...allDates.map(d => new Date(d))));
@@ -182,6 +218,7 @@ function renderTable(data) {
                     status: 'Holiday',
                     isHoliday: true
                 });
+                allDates.push(iso);
             }
             date.setDate(date.getDate() + 1);
         }
@@ -190,15 +227,15 @@ function renderTable(data) {
     grouped.sort((a, b) => new Date(a.date) - new Date(b.date));
     grouped.forEach(r => {
         const isSunday = new Date(r.date).getDay() === 0;
-        const status = r.isHoliday ? 'Holiday' : getDayStatus(r.date, r.hoursWorked, r.punchIn, r.punchOut);
+        const status = r.isHoliday ? 'Holiday' : (r.isLeave ? 'Leave' : getDayStatus(r.date, r.hoursWorked, r.punchIn, r.punchOut));
         $tbody.append(`<tr>
             <td data-label="Date">${r.date}</td>
             <td data-label="Employee Name">${r.name || ''}</td>
-            <td data-label="Punch In Time">${isSunday ? '' : r.punchIn}</td>
-            <td data-label="Punch Out Time">${isSunday ? '' : r.punchOut}</td>
-            <td data-label="Location">${isSunday ? '' : r.location}</td>
-            <td data-label="Location Name">${isSunday ? '' : r.locationName}</td>
-            <td data-label="Hours Worked">${isSunday ? '' : r.hoursWorked}</td>
+            <td data-label="Punch In Time">${isSunday || r.isLeave ? '' : r.punchIn}</td>
+            <td data-label="Punch Out Time">${isSunday || r.isLeave ? '' : r.punchOut}</td>
+            <td data-label="Location">${isSunday || r.isLeave ? '' : r.location}</td>
+            <td data-label="Location Name">${isSunday || r.isLeave ? '' : r.locationName}</td>
+            <td data-label="Hours Worked">${isSunday || r.isLeave ? '' : r.hoursWorked}</td>
             <td data-label="Status">${status}</td>
         </tr>`);
     });
