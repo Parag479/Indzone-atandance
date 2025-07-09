@@ -48,8 +48,22 @@ $(document).ready(function() {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(function(position) {
                 const loc = `Lat: ${position.coords.latitude}, Lon: ${position.coords.longitude}`;
+                // Use OpenStreetMap Nominatim API for reverse geocoding
                 $.get(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}`, function(data) {
-                    const locName = data.address.city || data.address.town || data.address.village || data.address.state || data.display_name || 'Unknown';
+                    // Compose the most exact location string possible
+                    const addr = data.address || {};
+                    let parts = [];
+                    if (addr.road) parts.push(addr.road);
+                    if (addr.neighbourhood) parts.push(addr.neighbourhood);
+                    if (addr.suburb) parts.push(addr.suburb);
+                    if (addr.village) parts.push(addr.village);
+                    if (addr.town) parts.push(addr.town);
+                    if (addr.city) parts.push(addr.city);
+                    if (addr.state) parts.push(addr.state);
+                    if (addr.country) parts.push(addr.country);
+                    let locName = parts.join(', ');
+                    if (!locName && data.display_name) locName = data.display_name;
+                    if (!locName) locName = 'Unknown';
                     callback(loc, locName);
                 }).fail(function() {
                     callback(loc, 'Unknown');
