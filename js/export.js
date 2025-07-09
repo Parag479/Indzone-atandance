@@ -103,7 +103,8 @@ function renderLeaveTable(leaves, isAdmin) {
     if (leaves.length === 0) {
         $tbody.append('<tr><td colspan="8" style="text-align:center;color:#888;">No leave requests found.</td></tr>');
     }
-    leaves.forEach(l => {
+    // Helper to render a single row
+    function renderRow(l, name) {
         let actionHtml = '';
         let statusBadge = '';
         if (l.status === 'Pending') statusBadge = '<span style="color:#fff;background:#E70000;padding:2px 8px;border-radius:8px;font-weight:bold;">Pending</span>';
@@ -122,7 +123,7 @@ function renderLeaveTable(leaves, isAdmin) {
         let days = getLeaveDays(l.fromDate, l.toDate);
         $tbody.append(`<tr>
             <td>${l.employeeId}</td>
-            <td>${l.employeeName}</td>
+            <td>${name || ''}</td>
             <td>${l.fromDate || ''}</td>
             <td>${l.toDate || ''}</td>
             <td>${days}</td>
@@ -130,6 +131,18 @@ function renderLeaveTable(leaves, isAdmin) {
             <td>${proofHtml}</td>
             <td>${actionHtml}</td>
         </tr>`);
+    }
+    // Render all leaves, fetching name if missing
+    leaves.forEach(l => {
+        if (l.employeeName && l.employeeName.trim() !== '') {
+            renderRow(l, l.employeeName);
+        } else if (l.employeeId) {
+            fetchEmployeeName(l.employeeId, function(name) {
+                renderRow(l, name);
+            });
+        } else {
+            renderRow(l, '');
+        }
     });
     // Heading update
     if (isAdmin) {
@@ -184,14 +197,15 @@ function renderTable(data) {
                 if (!allDates.includes(iso)) {
                     grouped.push({
                         date: iso,
-                        name: '',
+                        name: lv.employeeName || '',
                         punchIn: '',
                         punchOut: '',
                         location: '',
                         locationName: '',
                         hoursWorked: '',
                         status: 'Leave',
-                        isLeave: true
+                        isLeave: true,
+                        employeeId: lv.employeeId
                     });
                     allDates.push(iso);
                 }
@@ -228,16 +242,32 @@ function renderTable(data) {
     grouped.forEach(r => {
         const isSunday = new Date(r.date).getDay() === 0;
         const status = r.isHoliday ? 'Holiday' : (r.isLeave ? 'Leave' : getDayStatus(r.date, r.hoursWorked, r.punchIn, r.punchOut));
-        $tbody.append(`<tr>
-            <td data-label="Date">${r.date}</td>
-            <td data-label="Employee Name">${r.name || ''}</td>
-            <td data-label="Punch In Time">${isSunday || r.isLeave ? '' : r.punchIn}</td>
-            <td data-label="Punch Out Time">${isSunday || r.isLeave ? '' : r.punchOut}</td>
-            <td data-label="Location">${isSunday || r.isLeave ? '' : r.location}</td>
-            <td data-label="Location Name">${isSunday || r.isLeave ? '' : r.locationName}</td>
-            <td data-label="Hours Worked">${isSunday || r.isLeave ? '' : r.hoursWorked}</td>
-            <td data-label="Status">${status}</td>
-        </tr>`);
+        // If leave row and name missing, fetch name using employeeId
+        if (r.isLeave && (!r.name || r.name.trim() === '') && r.employeeId) {
+            fetchEmployeeName(r.employeeId, function(name) {
+                $tbody.append(`<tr>
+                    <td data-label="Date">${r.date}</td>
+                    <td data-label="Employee Name">${name || ''}</td>
+                    <td data-label="Punch In Time"></td>
+                    <td data-label="Punch Out Time"></td>
+                    <td data-label="Location"></td>
+                    <td data-label="Location Name"></td>
+                    <td data-label="Hours Worked"></td>
+                    <td data-label="Status">${status}</td>
+                </tr>`);
+            });
+        } else {
+            $tbody.append(`<tr>
+                <td data-label="Date">${r.date}</td>
+                <td data-label="Employee Name">${r.name || ''}</td>
+                <td data-label="Punch In Time">${isSunday || r.isLeave ? '' : r.punchIn}</td>
+                <td data-label="Punch Out Time">${isSunday || r.isLeave ? '' : r.punchOut}</td>
+                <td data-label="Location">${isSunday || r.isLeave ? '' : r.location}</td>
+                <td data-label="Location Name">${isSunday || r.isLeave ? '' : r.locationName}</td>
+                <td data-label="Hours Worked">${isSunday || r.isLeave ? '' : r.hoursWorked}</td>
+                <td data-label="Status">${status}</td>
+            </tr>`);
+        }
     });
 }
 
