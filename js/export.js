@@ -160,16 +160,45 @@ function renderTable(data) {
     const grouped = groupData(data);
     const $tbody = $('#attendanceRecords tbody');
     $tbody.empty();
+    // Get all unique dates in the data
+    let allDates = grouped.map(r => r.date);
+    // If viewing as employee, fill missing Sundays for the month
+    if (allDates.length > 0) {
+        const minDate = new Date(Math.min(...allDates.map(d => new Date(d))));
+        const maxDate = new Date(Math.max(...allDates.map(d => new Date(d))));
+        let date = new Date(minDate);
+        while (date <= maxDate) {
+            const iso = date.toISOString().slice(0, 10);
+            if (!allDates.includes(iso) && date.getDay() === 0) {
+                // Insert a Sunday holiday row
+                grouped.push({
+                    date: iso,
+                    name: '',
+                    punchIn: '',
+                    punchOut: '',
+                    location: '',
+                    locationName: '',
+                    hoursWorked: '',
+                    status: 'Holiday',
+                    isHoliday: true
+                });
+            }
+            date.setDate(date.getDate() + 1);
+        }
+    }
+    // Sort by date ascending
+    grouped.sort((a, b) => new Date(a.date) - new Date(b.date));
     grouped.forEach(r => {
-        const status = getDayStatus(r.date, r.hoursWorked, r.punchIn, r.punchOut);
+        const isSunday = new Date(r.date).getDay() === 0;
+        const status = r.isHoliday ? 'Holiday' : getDayStatus(r.date, r.hoursWorked, r.punchIn, r.punchOut);
         $tbody.append(`<tr>
             <td data-label="Date">${r.date}</td>
-            <td data-label="Employee Name">${r.name}</td>
-            <td data-label="Punch In Time">${r.punchIn}</td>
-            <td data-label="Punch Out Time">${r.punchOut}</td>
-            <td data-label="Location">${r.location}</td>
-            <td data-label="Location Name">${r.locationName}</td>
-            <td data-label="Hours Worked">${r.hoursWorked}</td>
+            <td data-label="Employee Name">${r.name || ''}</td>
+            <td data-label="Punch In Time">${isSunday ? '' : r.punchIn}</td>
+            <td data-label="Punch Out Time">${isSunday ? '' : r.punchOut}</td>
+            <td data-label="Location">${isSunday ? '' : r.location}</td>
+            <td data-label="Location Name">${isSunday ? '' : r.locationName}</td>
+            <td data-label="Hours Worked">${isSunday ? '' : r.hoursWorked}</td>
             <td data-label="Status">${status}</td>
         </tr>`);
     });
