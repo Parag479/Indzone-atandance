@@ -188,7 +188,9 @@ function renderTable(data) {
             return;
         }
         const user = JSON.parse(localStorage.getItem('user') || 'null');
-        const acceptedLeaves = leavesCache.filter(l => l.employeeId === user.id && l.status === 'Accepted');
+        const acceptedLeaves = user
+            ? leavesCache.filter(l => l.employeeId === user.id && l.status === 'Accepted')
+            : [];
         acceptedLeaves.forEach(lv => {
             const from = new Date(lv.fromDate);
             const to = new Date(lv.toDate);
@@ -383,6 +385,8 @@ $(document).ready(function() {
     } else {
         fetchEmployeeName(currentEmployeeId, function(empName) {
             setUserInfoBar(currentEmployeeId, empName || '');
+            // Set user object in localStorage for later use
+            localStorage.setItem('user', JSON.stringify({ id: currentEmployeeId, name: empName || '' }));
         });
     }
 
