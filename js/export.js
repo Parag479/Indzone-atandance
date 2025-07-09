@@ -82,6 +82,15 @@ function getDayStatus(dateStr, hoursWorked, punchIn, punchOut) {
 }
 
 // --- Leave System ---
+function getLeaveDays(fromDate, toDate) {
+    if (!fromDate || !toDate) return '';
+    const from = new Date(fromDate);
+    const to = new Date(toDate);
+    if (isNaN(from) || isNaN(to)) return '';
+    // +1 to include both start and end date
+    return Math.floor((to - from) / (1000 * 60 * 60 * 24)) + 1;
+}
+
 function renderLeaveTable(leaves, isAdmin) {
     const $tbody = $('#leaveRecords tbody');
     $tbody.empty();
@@ -92,12 +101,16 @@ function renderLeaveTable(leaves, isAdmin) {
         } else {
             actionHtml = l.status;
         }
+        let proofHtml = l.proofUrl ? `<a href="${l.proofUrl}" target="_blank">View</a>` : '';
+        let days = getLeaveDays(l.fromDate, l.toDate);
         $tbody.append(`<tr>
             <td>${l.employeeId}</td>
             <td>${l.employeeName}</td>
-            <td>${l.fromDate}</td>
-            <td>${l.toDate}</td>
+            <td>${l.fromDate || ''}</td>
+            <td>${l.toDate || ''}</td>
+            <td>${days}</td>
             <td>${l.reason}</td>
+            <td>${proofHtml}</td>
             <td>${actionHtml}</td>
         </tr>`);
     });
@@ -142,6 +155,21 @@ function renderTable(data) {
 let currentEmployeeId = null;
 let isAdmin = false;
 const ADMIN_PASSWORD = 'admin@123'; // Change this to your desired admin password
+
+let employeeNameMap = {};
+
+function fetchEmployeeName(id, callback) {
+    if (employeeNameMap[id]) return callback(employeeNameMap[id]);
+    db.ref('employees/' + id).once('value').then(snapshot => {
+        const data = snapshot.val();
+        if (data && data.name) {
+            employeeNameMap[id] = data.name;
+            callback(data.name);
+        } else {
+            callback('');
+        }
+    });
+}
 
 $(document).ready(function() {
     // Prompt for Employee ID at page load
@@ -225,25 +253,43 @@ $(document).ready(function() {
     });
 
     // Leave form submit
-    $('#leaveForm').submit(function(e) {
+    $('#leaveForm').off('submit').on('submit', function(e) {
         e.preventDefault();
         const fromDate = $('#leaveFrom').val();
         const toDate = $('#leaveTo').val();
         const reason = $('#leaveReason').val();
+        const fileInput = $('#leaveProof')[0];
         if (!fromDate || !toDate || !reason) return alert('All fields required!');
-        const leaveObj = {
-            employeeId: currentEmployeeId,
-            employeeName: isAdmin ? 'Admin' : '', // Optionally fetch name
-            fromDate,
-            toDate,
-            reason,
-            status: 'Pending',
-            appliedAt: new Date().toISOString()
-        };
-        applyLeave(leaveObj, function() {
-            alert('Leave applied!');
-            $('#leaveForm')[0].reset();
-            if (isAdmin) loadLeaves();
+        fetchEmployeeName(currentEmployeeId, function(empName) {
+            // Handle file upload if present
+            const file = fileInput && fileInput.files && fileInput.files[0];
+            if (file) {
+                const storageRef = firebase.storage().ref('leaveProofs/' + Date.now() + '_' + file.name);
+                storageRef.put(file).then(snapshot => {
+                    snapshot.ref.getDownloadURL().then(url => {
+                        saveLeave(empName, url);
+                    });
+                });
+            } else {
+                saveLeave(empName, '');
+            }
+            function saveLeave(empName, proofUrl) {
+                const leaveObj = {
+                    employeeId: currentEmployeeId,
+                    employeeName: empName,
+                    fromDate,
+                    toDate,
+                    reason,
+                    proofUrl,
+                    status: 'Pending',
+                    appliedAt: new Date().toISOString()
+                };
+                applyLeave(leaveObj, function() {
+                    alert('Leave applied!');
+                    $('#leaveForm')[0].reset();
+                    if (isAdmin) loadLeaves();
+                });
+            }
         });
     });
 

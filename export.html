@@ -51,6 +51,8 @@
                 <input type="date" id="leaveTo" required>
                 <label for="leaveReason">Reason:</label>
                 <input type="text" id="leaveReason" required placeholder="Reason for leave">
+                <label for="leaveProof">Document (optional):</label>
+                <input type="file" id="leaveProof" accept="image/*,application/pdf">
                 <button type="submit">Apply Leave</button>
             </form>
             <h2 style="margin-top:30px;">Leave Requests</h2>
@@ -62,7 +64,9 @@
                             <th>Employee Name</th>
                             <th>From</th>
                             <th>To</th>
+                            <th>Days</th>
                             <th>Reason</th>
+                            <th>Document</th>
                             <th>Status/Action</th>
                         </tr>
                     </thead>
