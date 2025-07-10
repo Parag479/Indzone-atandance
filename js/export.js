@@ -175,10 +175,8 @@ function renderTable(data) {
     $tbody.empty();
     // Get all unique dates in the data
     let allDates = grouped.map(r => r.date);
-    // Add leave days as attendance rows (Status: Leave)
-    if (typeof fetchLeaves === 'function') {
-        // Synchronous hack: fetchLeaves is async, so we use a workaround
-        // We'll use localStorage cache for last leaves if available
+    // Show leave rows only for the current employee (not admin)
+    if (typeof fetchLeaves === 'function' && !isAdmin) {
         let leavesCache = window._leavesCache || [];
         if (leavesCache.length === 0) {
             fetchLeaves(function(leaves) {
@@ -187,7 +185,6 @@ function renderTable(data) {
             });
             return;
         }
-        // --- Only show leave rows for current user in dashboard ---
         const user = JSON.parse(localStorage.getItem('user') || 'null');
         let leaveRows = user ? leavesCache.filter(l => l.employeeId === user.id && l.status === 'Accepted') : [];
         leaveRows.forEach(lv => {
@@ -213,12 +210,36 @@ function renderTable(data) {
             }
         });
     }
+    // If viewing as employee, fill missing Sundays for the month
+    if (allDates.length > 0) {
+        const minDate = new Date(Math.min(...allDates.map(d => new Date(d))));
+        const maxDate = new Date(Math.max(...allDates.map(d => new Date(d))));
+        let date = new Date(minDate);
+        while (date <= maxDate) {
+            const iso = date.toISOString().slice(0, 10);
+            if (!allDates.includes(iso) && date.getDay() === 0) {
+                // Insert a Sunday holiday row
+                grouped.push({
+                    date: iso,
+                    name: '',
+                    punchIn: '',
+                    punchOut: '',
+                    location: '',
+                    locationName: '',
+                    hoursWorked: '',
+                    status: 'Holiday',
+                    isHoliday: true
+                });
+                allDates.push(iso);
+            }
+            date.setDate(date.getDate() + 1);
+        }
+    }
     // Sort by date ascending
     grouped.sort((a, b) => new Date(a.date) - new Date(b.date));
     grouped.forEach(r => {
         const isSunday = new Date(r.date).getDay() === 0;
         const status = r.isHoliday ? 'Holiday' : (r.isLeave ? 'Leave' : getDayStatus(r.date, r.hoursWorked, r.punchIn, r.punchOut));
-        // If leave row and name missing, fetch name using employeeId
         if (r.isLeave && (!r.name || r.name.trim() === '') && r.employeeId) {
             fetchEmployeeName(r.employeeId, function(name) {
                 $tbody.append(`<tr>
