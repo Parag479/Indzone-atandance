@@ -104,6 +104,36 @@ $(document).ready(function() {
         $('#punchStatus').remove();
     }
 
+    // --- Punch Out Notification Logic ---
+    let punchOutTimer = null;
+    function schedulePunchOutNotification() {
+        // 8 hours = 8 * 60 * 60 * 1000 ms = 28800000 ms
+        if (punchOutTimer) clearTimeout(punchOutTimer);
+        punchOutTimer = setTimeout(() => {
+            if (Notification && Notification.permission === 'granted') {
+                new Notification('Punch Out Reminder', {
+                    body: '8 hours complete! Please Punch Out now.',
+                    icon: 'ind_logo.png'
+                });
+            } else if (Notification && Notification.permission !== 'denied') {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        new Notification('Punch Out Reminder', {
+                            body: '8 hours complete! Please Punch Out now.',
+                            icon: 'ind_logo.png'
+                        });
+                    }
+                });
+            }
+        }, 8 * 60 * 60 * 1000); // 8 hours
+    }
+    function clearPunchOutNotification() {
+        if (punchOutTimer) {
+            clearTimeout(punchOutTimer);
+            punchOutTimer = null;
+        }
+    }
+
     $('#punchInBtn').click(function() {
         const employeeId = $('#employeeId').val();
         const employeeName = $('#employeeName').val();
@@ -131,6 +161,8 @@ $(document).ready(function() {
                     $('#employeeName').val('');
                     setPunchButtons(true);
                     clearStatus();
+                    // Schedule Punch Out notification after 8 hours
+                    schedulePunchOutNotification();
                 });
             });
         } else {
@@ -165,6 +197,8 @@ $(document).ready(function() {
                     $('#employeeName').val('');
                     setPunchButtons(true);
                     clearStatus();
+                    // Clear Punch Out notification timer
+                    clearPunchOutNotification();
                 });
             });
         } else {
@@ -225,4 +259,6 @@ $(document).ready(function() {
 
     // Initial fetch
     fetchEmployees();
+    // Also clear timer on page unload
+    window.addEventListener('beforeunload', clearPunchOutNotification);
 });
