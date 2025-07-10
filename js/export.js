@@ -187,11 +187,10 @@ function renderTable(data) {
             });
             return;
         }
+        // --- Only show leave rows for current user in dashboard ---
         const user = JSON.parse(localStorage.getItem('user') || 'null');
-        const acceptedLeaves = user
-            ? leavesCache.filter(l => l.employeeId === user.id && l.status === 'Accepted')
-            : [];
-        acceptedLeaves.forEach(lv => {
+        let leaveRows = user ? leavesCache.filter(l => l.employeeId === user.id && l.status === 'Accepted') : [];
+        leaveRows.forEach(lv => {
             const from = new Date(lv.fromDate);
             const to = new Date(lv.toDate);
             for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
@@ -213,31 +212,6 @@ function renderTable(data) {
                 }
             }
         });
-    }
-    // If viewing as employee, fill missing Sundays for the month
-    if (allDates.length > 0) {
-        const minDate = new Date(Math.min(...allDates.map(d => new Date(d))));
-        const maxDate = new Date(Math.max(...allDates.map(d => new Date(d))));
-        let date = new Date(minDate);
-        while (date <= maxDate) {
-            const iso = date.toISOString().slice(0, 10);
-            if (!allDates.includes(iso) && date.getDay() === 0) {
-                // Insert a Sunday holiday row
-                grouped.push({
-                    date: iso,
-                    name: '',
-                    punchIn: '',
-                    punchOut: '',
-                    location: '',
-                    locationName: '',
-                    hoursWorked: '',
-                    status: 'Holiday',
-                    isHoliday: true
-                });
-                allDates.push(iso);
-            }
-            date.setDate(date.getDate() + 1);
-        }
     }
     // Sort by date ascending
     grouped.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -368,10 +342,23 @@ $(document).ready(function() {
                 alert('No data to export!');
                 return;
             }
+            // Only export attendance rows, not leave rows
             let rows = [
-                ['Date', 'Employee Name', 'Punch In Time', 'Punch Out Time', 'Location', 'Location Name', 'Hours Worked', 'Status'],
-                ...grouped.map(r => [r.date, r.name, r.punchIn, r.punchOut, r.location, r.locationName, r.hoursWorked, getDayStatus(r.date, r.hoursWorked, r.punchIn, r.punchOut)])
+                ['Date', 'Employee Name', 'Punch In Time', 'Punch Out Time', 'Location', 'Location Name', 'Hours Worked', 'Status']
             ];
+            grouped.forEach(r => {
+                if (r.isLeave) return; // skip leave rows
+                rows.push([
+                    r.date,
+                    r.name || '',
+                    r.punchIn || '',
+                    r.punchOut || '',
+                    r.location || '',
+                    r.locationName || '',
+                    r.hoursWorked || '',
+                    r.isHoliday ? 'Holiday' : getDayStatus(r.date, r.hoursWorked, r.punchIn, r.punchOut)
+                ]);
+            });
             let worksheet = XLSX.utils.aoa_to_sheet(rows);
             let workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance');
@@ -510,4 +497,41 @@ $(document).ready(function() {
             $('#currentLeaveNotice').hide();
         }
     }
+
+    // Add Export Leave Data button if not present
+    if ($('#exportLeaveBtn').length === 0) {
+        $('<button id="exportLeaveBtn" class="admin-only" style="margin:10px 0 20px 0;">Export Leave Data</button>')
+            .insertBefore($('#leaveSection .table-responsive'));
+    }
+    // Export Leave Data logic
+    $('#exportLeaveBtn').off('click').on('click', function() {
+        fetchLeaves(function(leaves) {
+            if (!leaves || leaves.length === 0) {
+                alert('No leave data to export!');
+                return;
+            }
+            let rows = [
+                ['Employee ID', 'Employee Name', 'From Date', 'To Date', 'Days', 'Reason', 'Document URL', 'Status', 'Applied At']
+            ];
+            leaves.forEach(l => {
+                // Calculate days
+                let days = getLeaveDays(l.fromDate, l.toDate);
+                rows.push([
+                    l.employeeId || '',
+                    l.employeeName || '',
+                    l.fromDate || '',
+                    l.toDate || '',
+                    days,
+                    l.reason || '',
+                    l.proofUrl || '',
+                    l.status || '',
+                    l.appliedAt || ''
+                ]);
+            });
+            let worksheet = XLSX.utils.aoa_to_sheet(rows);
+            let workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Leave Data');
+            XLSX.writeFile(workbook, 'leave_data.xlsx');
+        });
+    });
 });
