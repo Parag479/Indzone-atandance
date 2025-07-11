@@ -106,32 +106,76 @@ $(document).ready(function() {
 
     // --- Punch Out Notification Logic ---
     let punchOutTimer = null;
+    let punchOutRepeatTimer = null;
     function schedulePunchOutNotification() {
         // 8 hours = 8 * 60 * 60 * 1000 ms = 28800000 ms
         if (punchOutTimer) clearTimeout(punchOutTimer);
+        if (punchOutRepeatTimer) clearInterval(punchOutRepeatTimer);
         punchOutTimer = setTimeout(() => {
-            if (Notification && Notification.permission === 'granted') {
-                new Notification('Punch Out Reminder', {
-                    body: '8 hours complete! Please Punch Out now.',
-                    icon: 'ind_logo.png'
-                });
-            } else if (Notification && Notification.permission !== 'denied') {
-                Notification.requestPermission().then(permission => {
-                    if (permission === 'granted') {
-                        new Notification('Punch Out Reminder', {
-                            body: '8 hours complete! Please Punch Out now.',
-                            icon: 'ind_logo.png'
-                        });
-                    }
-                });
-            }
+            showPunchOutNotification();
+            // Repeat every 10 minutes until punch out
+            punchOutRepeatTimer = setInterval(showPunchOutNotification, 10 * 60 * 1000);
+            // Also show dashboard warning
+            showPunchOutWarning();
         }, 8 * 60 * 60 * 1000); // 8 hours
+    }
+    function showPunchOutNotification() {
+        if (Notification && Notification.permission === 'granted') {
+            new Notification('Punch Out Reminder', {
+                body: '8 hours complete! Please Punch Out now.',
+                icon: 'ind_logo.png'
+            });
+        } else if (Notification && Notification.permission !== 'denied') {
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    new Notification('Punch Out Reminder', {
+                        body: '8 hours complete! Please Punch Out now.',
+                        icon: 'ind_logo.png'
+                    });
+                }
+            });
+        }
+    }
+    function showPunchOutWarning() {
+        if ($('#punchOutWarning').length === 0) {
+            $('<div id="punchOutWarning" style="color:#E70000;font-weight:bold;text-align:center;margin:10px 0;">8 hours complete! Please Punch Out now.</div>').insertBefore('#punchForm');
+        }
     }
     function clearPunchOutNotification() {
         if (punchOutTimer) {
             clearTimeout(punchOutTimer);
             punchOutTimer = null;
         }
+        if (punchOutRepeatTimer) {
+            clearInterval(punchOutRepeatTimer);
+            punchOutRepeatTimer = null;
+        }
+        $('#punchOutWarning').remove();
+    }
+    // --- VPN/Proxy Detection Logic ---
+    function checkLocationWithIP(geoLat, geoLon, callback) {
+        $.get('https://ipapi.co/json/', function(data) {
+            const ipLat = data.latitude;
+            const ipLon = data.longitude;
+            // Calculate distance between two lat/lon points (Haversine formula)
+            function getDistanceFromLatLonInKm(lat1,lon1,lat2,lon2) {
+                var R = 6371; // Radius of the earth in km
+                var dLat = (lat2-lat1) * Math.PI/180;
+                var dLon = (lon2-lon1) * Math.PI/180;
+                var a = 
+                    Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * 
+                    Math.sin(dLon/2) * Math.sin(dLon/2)
+                    ;
+                var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                var d = R * c; // Distance in km
+                return d;
+            }
+            const dist = getDistanceFromLatLonInKm(geoLat, geoLon, ipLat, ipLon);
+            callback(dist);
+        }).fail(function() {
+            callback(null); // Could not get IP location
+        });
     }
 
     $('#punchInBtn').click(function() {
@@ -148,22 +192,41 @@ $(document).ready(function() {
                     clearStatus();
                     return;
                 }
-                addAttendance({
-                    id: employeeId,
-                    name: employeeName,
-                    action: 'Punch In',
-                    time: timestamp.toISOString(),
-                    location: location,
-                    locationName: locationName
-                }).then(() => {
-                    alert('Punched In Successfully!');
-                    $('#employeeId').val('');
-                    $('#employeeName').val('');
+                // --- VPN/Proxy check: compare browser geolocation with IP geolocation ---
+                const match = location.match(/Lat: ([\d.\-]+), Lon: ([\d.\-]+)/);
+                if (match) {
+                    const geoLat = parseFloat(match[1]);
+                    const geoLon = parseFloat(match[2]);
+                    checkLocationWithIP(geoLat, geoLon, function(dist) {
+                        if (dist !== null && dist > 50) { // 50km+ difference is suspicious
+                            alert('Location mismatch detected! Please turn off VPN/Proxy and try again.');
+                            setPunchButtons(true);
+                            clearStatus();
+                            return;
+                        }
+                        // If location is OK, proceed
+                        addAttendance({
+                            id: employeeId,
+                            name: employeeName,
+                            action: 'Punch In',
+                            time: timestamp.toISOString(),
+                            location: location,
+                            locationName: locationName
+                        }).then(() => {
+                            alert('Punched In Successfully!');
+                            $('#employeeId').val('');
+                            $('#employeeName').val('');
+                            setPunchButtons(true);
+                            clearStatus();
+                            // Schedule Punch Out notification after 8 hours
+                            schedulePunchOutNotification();
+                        });
+                    });
+                } else {
+                    alert('Could not parse location.');
                     setPunchButtons(true);
                     clearStatus();
-                    // Schedule Punch Out notification after 8 hours
-                    schedulePunchOutNotification();
-                });
+                }
             });
         } else {
             alert('Please select Employee.');
