@@ -352,6 +352,22 @@ $(document).ready(function() {
         }
     });
 
+    // Add modal HTML for punch out reason if not present
+    if ($('#punchOutReasonModal').length === 0) {
+        $('body').append(`
+        <div id="punchOutReasonModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.4);z-index:99999;align-items:center;justify-content:center;">
+            <div style="background:#fff;padding:28px 32px;border-radius:10px;max-width:350px;margin:auto;box-shadow:0 2px 16px #0002;">
+                <h3 style="margin-top:0;">Early Punch Out</h3>
+                <p>8 hours not complete. Please enter reason for early Punch Out:</p>
+                <textarea id="punchOutReasonInput" style="width:100%;height:60px;margin-bottom:12px;"></textarea>
+                <div style="text-align:right;">
+                    <button id="punchOutReasonCancel">Cancel</button>
+                    <button id="punchOutReasonSubmit" style="background:#003F8C;color:#fff;padding:6px 18px;border:none;border-radius:5px;">Submit</button>
+                </div>
+            </div>
+        </div>`);
+    }
+
     $('#punchOutBtn').off('click').on('click', function() {
         const employeeId = $('#employeeId').val();
         const employeeName = $('#employeeName').val();
@@ -366,12 +382,9 @@ $(document).ready(function() {
                     clearStatus();
                     return;
                 }
-                // Find last punch in for this employee
                 fetchAttendance(function(records) {
                     const userRecords = records.filter(r => r.id === employeeId);
-                    // Find latest punch in
                     const lastPunchIn = userRecords.filter(r => r.action === 'Punch In').sort((a, b) => new Date(b.time) - new Date(a.time))[0];
-                    let allowPunchOut = true;
                     let punchOutEarly = false;
                     if (lastPunchIn) {
                         const inTime = new Date(lastPunchIn.time);
@@ -383,27 +396,35 @@ $(document).ready(function() {
                         }
                     }
                     if (punchOutEarly) {
-                        const reason = prompt('8 hours not complete. Please enter reason for early Punch Out:');
-                        if (!reason || !reason.trim()) {
-                            alert('Reason is required for early Punch Out.');
+                        // Show modal for reason
+                        $('#punchOutReasonInput').val('');
+                        $('#punchOutReasonModal').fadeIn(200);
+                        $('#punchOutReasonCancel').off('click').on('click', function() {
+                            $('#punchOutReasonModal').fadeOut(200);
                             setPunchButtons(true);
                             clearStatus();
-                            return;
-                        }
-                        // Save to pending_punchout for admin approval
-                        db.ref('pending_punchout').push({
-                            id: employeeId,
-                            name: employeeName,
-                            action: 'Punch Out',
-                            time: timestamp.toISOString(),
-                            location: location,
-                            locationName: locationName,
-                            reason: reason,
-                            status: 'pending'
-                        }).then(() => {
-                            alert('Punch Out request sent for admin approval.');
-                            setPunchButtons(true);
-                            clearStatus();
+                        });
+                        $('#punchOutReasonSubmit').off('click').on('click', function() {
+                            const reason = $('#punchOutReasonInput').val().trim();
+                            if (!reason) {
+                                alert('Reason is required for early Punch Out.');
+                                return;
+                            }
+                            $('#punchOutReasonModal').fadeOut(200);
+                            db.ref('pending_punchout').push({
+                                id: employeeId,
+                                name: employeeName,
+                                action: 'Punch Out',
+                                time: timestamp.toISOString(),
+                                location: location,
+                                locationName: locationName,
+                                reason: reason,
+                                status: 'pending'
+                            }).then(() => {
+                                alert('Punch Out request sent for admin approval.');
+                                setPunchButtons(true);
+                                clearStatus();
+                            });
                         });
                         return;
                     }

@@ -428,6 +428,39 @@ function renderPendingPunchOuts() {
     });
 }
 
+function renderMyPunchOutRequests(employeeId) {
+    const $panel = $('#myPunchOutPanel');
+    $panel.empty();
+    $panel.append('<h2>My Early Punch Out Requests</h2>');
+    $panel.append('<table id="myPunchOutTable"><thead><tr><th>Reason</th><th>Time</th><th>Status</th></tr></thead><tbody></tbody></table>');
+    const $tbody = $panel.find('tbody');
+    // Fetch pending requests
+    firebase.database().ref('pending_punchout').orderByChild('id').equalTo(employeeId).on('value', function(snapshot) {
+        $tbody.empty();
+        const data = snapshot.val() || {};
+        Object.values(data).forEach(req => {
+            $tbody.append(`<tr>
+                <td>${req.reason}</td>
+                <td>${new Date(req.time).toLocaleString()}</td>
+                <td>Pending</td>
+            </tr>`);
+        });
+        // Fetch approved/rejected from attendance (with reason)
+        firebase.database().ref('attendance').orderByChild('id').equalTo(employeeId).once('value').then(snap => {
+            const attData = snap.val() || {};
+            Object.values(attData).forEach(r => {
+                if (r.action === 'Punch Out' && r.reason) {
+                    $tbody.append(`<tr>
+                        <td>${r.reason}</td>
+                        <td>${new Date(r.time).toLocaleString()}</td>
+                        <td>Approved</td>
+                    </tr>`);
+                }
+            });
+        });
+    });
+}
+
 $(document).ready(function() {
     // Prompt for Employee ID at page load
     currentEmployeeId = prompt('Enter your Employee ID to view your attendance:');
@@ -972,6 +1005,13 @@ $(document).ready(function() {
         $('<div id="pendingPunchOutPanel" style="margin:30px 0;"></div>').insertBefore('#exportPanel');
     }
     renderPendingPunchOuts();
+
+    if (!isAdmin) {
+        if ($('#myPunchOutPanel').length === 0) {
+            $('<div id="myPunchOutPanel" style="margin:30px 0;"></div>').insertBefore('#attendanceRecords');
+        }
+        renderMyPunchOutRequests(currentEmployeeId);
+    }
 
     // Approve/Reject handlers
     $(document).on('click', '.approve-btn', function() {
