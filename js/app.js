@@ -178,6 +178,16 @@ $(document).ready(function() {
         });
     }
 
+    // --- Simple Encryption/Decryption ---
+    function encrypt(str) {
+        if (!str) return '';
+        try { return btoa(unescape(encodeURIComponent(str))); } catch (e) { return str; }
+    }
+    function decrypt(str) {
+        if (!str) return '';
+        try { return decodeURIComponent(escape(atob(str))); } catch (e) { return str; }
+    }
+
     $('#punchInBtn').click(function() {
         const employeeId = $('#employeeId').val();
         const employeeName = $('#employeeName').val();
@@ -319,6 +329,46 @@ $(document).ready(function() {
     if (!$('#locationName').length) {
         $('<input type="hidden" id="locationName">').insertAfter($('#location'));
     }
+
+    // Show Edit Profile section for selected employee
+    function showEditProfileSection(employeeId) {
+        if (!employeeId) {
+            $('#editProfileSection').hide();
+            return;
+        }
+        // Fetch employee details
+        db.ref('employees/' + employeeId).once('value').then(snapshot => {
+            const emp = snapshot.val();
+            if (!emp) {
+                $('#editProfileSection').hide();
+                return;
+            }
+            $('#editWhatsapp').val(decrypt(emp.whatsapp || ''));
+            $('#editEmail').val(decrypt(emp.email || ''));
+            $('#editProfileSection').show();
+        });
+    }
+    // When employee is selected, show profile edit
+    $('#employeeId').change(function() {
+        const empId = $(this).val();
+        showEditProfileSection(empId);
+    });
+    // On page load, if employee is preselected, show profile edit
+    setTimeout(function() {
+        const empId = $('#employeeId').val();
+        if (empId) showEditProfileSection(empId);
+    }, 500);
+    // Handle profile update
+    $('#editProfileForm').submit(function(e) {
+        e.preventDefault();
+        const empId = $('#employeeId').val();
+        if (!empId) return;
+        const whatsapp = encrypt($('#editWhatsapp').val().trim());
+        const email = encrypt($('#editEmail').val().trim());
+        db.ref('employees/' + empId).update({ whatsapp, email }).then(() => {
+            alert('Profile updated!');
+        });
+    });
 
     // Initial fetch
     fetchEmployees();

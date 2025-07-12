@@ -103,7 +103,6 @@ function renderLeaveTable(leaves, isAdmin) {
     if (leaves.length === 0) {
         $tbody.append('<tr><td colspan="8" style="text-align:center;color:#888;">No leave requests found.</td></tr>');
     }
-    // Helper to render a single row
     function renderRow(l, name) {
         let actionHtml = '';
         let statusBadge = '';
@@ -132,6 +131,38 @@ function renderLeaveTable(leaves, isAdmin) {
             <td>${actionHtml}</td>
         </tr>`);
     }
+    // Show real contact on button click for employee
+    if (!isAdmin) {
+        $tbody.off('click', '.show-contact-btn').on('click', '.show-contact-btn', function(e) {
+            e.preventDefault();
+            const $span = $(this).closest('.masked-contact');
+            const realPhone = $span.data('phone');
+            const realEmail = $span.data('email');
+            const empId = $(this).closest('tr').find('td:first').text();
+            const entered = prompt('Enter your Employee ID to view your contact info:');
+            if (entered && entered.trim() === empId.trim()) {
+                $span.html(`<span style='display:inline-block;min-width:120px;'>${realPhone}</span> <span style='display:inline-block;min-width:150px;'>${realEmail}</span> <span style='color:green;font-size:1.2em;vertical-align:middle;'>✔️</span>`);
+            } else {
+                alert('Incorrect Employee ID!');
+            }
+        });
+    }
+    // Admin summary table of all employee contacts
+    if (isAdmin) {
+        db.ref('employees').once('value').then(snapshot => {
+            const data = snapshot.val() || {};
+            const employees = Object.values(data);
+            let html = `<div id='adminContactTable' style='margin-top:30px;'><h2>Employee Contact Info</h2><div class='table-responsive'><table class='table'><thead><tr><th>Employee ID</th><th>Name</th><th>WhatsApp</th><th>Email</th></tr></thead><tbody>`;
+            employees.forEach(emp => {
+                html += `<tr><td>${emp.id}</td><td>${emp.name || ''}</td><td>${decrypt(emp.whatsapp || '')}</td><td>${decrypt(emp.email || '')}</td></tr>`;
+            });
+            html += '</tbody></table></div></div>';
+            if ($('#adminContactTable').length) $('#adminContactTable').remove();
+            $('#leaveSection').after(html);
+        });
+    } else {
+        $('#adminContactTable').remove();
+    }
     // Render all leaves, fetching name if missing
     leaves.forEach(l => {
         if (l.employeeName && l.employeeName.trim() !== '') {
@@ -150,6 +181,18 @@ function renderLeaveTable(leaves, isAdmin) {
     } else {
         $('#leaveSection h2').last().text('My Leave Requests');
     }
+    // Update leave table header to remove WhatsApp, Email, and Contact columns
+    $('#leaveRecords').closest('table').find('thead tr').html(`
+        <th>Employee ID</th>
+        <th>Name</th>
+        <th>From Date</th>
+        <th>To Date</th>
+        <th>Days</th>
+        <th>Reason</th>
+        <th>Document</th>
+        <th>Status/Action</th>
+    `);
+    // Remove contact update logic for admin
 }
 
 function fetchLeaves(callback) {
@@ -240,23 +283,32 @@ function renderTable(data) {
     grouped.forEach(r => {
         const isSunday = new Date(r.date).getDay() === 0;
         const status = r.isHoliday ? 'Holiday' : (r.isLeave ? 'Leave' : getDayStatus(r.date, r.hoursWorked, r.punchIn, r.punchOut));
+        // Make employee name clickable for admin
+        let employeeNameCell = r.name || '';
+        if (isAdmin && r.id) {
+            employeeNameCell = `<span class="clickable-employee" data-employee-id="${r.id}" style="cursor:pointer;color:#003F8C;text-decoration:underline;">${r.name || ''}</span>`;
+        }
         if (r.isLeave && (!r.name || r.name.trim() === '') && r.employeeId) {
             fetchEmployeeName(r.employeeId, function(name) {
+                let nameCell = name || '';
+                if (isAdmin && r.employeeId) {
+                    nameCell = `<span class="clickable-employee" data-employee-id="${r.employeeId}" style="cursor:pointer;color:#003F8C;text-decoration:underline;">${name || ''}</span>`;
+                }
                 $tbody.append(`<tr>
                     <td data-label="Date">${r.date}</td>
-                    <td data-label="Employee Name">${name || ''}</td>
+                    <td data-label="Employee Name">${nameCell}</td>
                     <td data-label="Punch In Time"></td>
                     <td data-label="Punch Out Time"></td>
-                    <td data-label="Location"></td>
-                    <td data-label="Location Name"></td>
-                    <td data-label="Hours Worked"></td>
+                    <td data-label="Location">${isSunday || r.isLeave ? '' : r.location}</td>
+                    <td data-label="Location Name">${isSunday || r.isLeave ? '' : r.locationName}</td>
+                    <td data-label="Hours Worked">${isSunday || r.isLeave ? '' : r.hoursWorked}</td>
                     <td data-label="Status">${status}</td>
                 </tr>`);
             });
         } else {
             $tbody.append(`<tr>
                 <td data-label="Date">${r.date}</td>
-                <td data-label="Employee Name">${r.name || ''}</td>
+                <td data-label="Employee Name">${employeeNameCell}</td>
                 <td data-label="Punch In Time">${isSunday || r.isLeave ? '' : r.punchIn}</td>
                 <td data-label="Punch Out Time">${isSunday || r.isLeave ? '' : r.punchOut}</td>
                 <td data-label="Location">${isSunday || r.isLeave ? '' : r.location}</td>
@@ -266,6 +318,29 @@ function renderTable(data) {
             </tr>`);
         }
     });
+    // Add click handler for employee names (admin only)
+    if (isAdmin) {
+        $(document).off('click', '.clickable-employee').on('click', '.clickable-employee', function() {
+            const employeeId = $(this).data('employee-id');
+            const employeeName = $(this).text();
+            // Filter data for this employee
+            getAttendanceData(function(allData) {
+                const filteredData = allData.filter(r => r.id === employeeId);
+                renderTable(filteredData);
+                // Update heading
+                $('#attendanceRecords h2').text(`Attendance Records - ${employeeName}`);
+                // Add "Show All" button if not present
+                if ($('#showAllBtn').length === 0) {
+                    $('<button id="showAllBtn" style="margin:10px 0;">Show All Employees</button>').insertBefore('#attendanceRecords .table-responsive');
+                }
+                $('#showAllBtn').off('click').on('click', function() {
+                    renderTable(allData);
+                    $('#attendanceRecords h2').text('All Attendance Records');
+                    $(this).remove();
+                });
+            });
+        });
+    }
 }
 
 let currentEmployeeId = null;
@@ -289,6 +364,43 @@ function fetchEmployeeName(id, callback) {
 
 function setUserInfoBar(id, name) {
     $('#userInfoBar').text(`ID: ${id} | Name: ${name}`).show();
+}
+
+// --- Simple Encryption/Decryption ---
+function encrypt(str) {
+    if (!str) return '';
+    try { return btoa(unescape(encodeURIComponent(str))); } catch (e) { return str; }
+}
+function decrypt(str) {
+    if (!str) return '';
+    try { return decodeURIComponent(escape(atob(str))); } catch (e) { return str; }
+}
+
+function isEncrypted(str) {
+    if (!str) return false;
+    // btoa output is base64, so only A-Za-z0-9+/= allowed, and usually longer than 6 chars
+    return /^[A-Za-z0-9+/=]{8,}$/.test(str);
+}
+
+// Helper to mask all but last 3 digits of a phone number
+function maskPhoneLast3(phone) {
+    if (!phone) return '';
+    // Remove non-digits for masking, but keep original for display
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length <= 3) return phone;
+    const masked = '*'.repeat(digits.length - 3) + digits.slice(-3);
+    // If original had +91 or similar, preserve prefix
+    const prefixMatch = phone.match(/^(\+\d{1,3}\s?)/);
+    const prefix = prefixMatch ? prefixMatch[1] : '';
+    return prefix + masked;
+}
+
+// Helper to mask email: first char, then stars, then last 3 before @, then domain
+function maskEmailPartial(email) {
+    if (!email) return '';
+    const [user, domain] = email.split('@');
+    if (!user || !domain || user.length <= 4) return email;
+    return user[0] + '*'.repeat(user.length - 4) + user.slice(-3) + '@' + domain;
 }
 
 $(document).ready(function() {
@@ -555,4 +667,249 @@ $(document).ready(function() {
             XLSX.writeFile(workbook, 'leave_data.xlsx');
         });
     });
+
+    // Add EmailJS for email notifications
+    (function(){
+        emailjs.init("pR0GeazBW-YCli6Y-"); // User's actual EmailJS User ID
+    })();
+    
+    // Function to send notifications
+    function sendPunchOutNotifications(employeeId, employeeName) {
+        // Get employee details from Firebase
+        db.ref('employees/' + employeeId).once('value').then(snapshot => {
+            const employee = snapshot.val();
+            if (!employee) return;
+            
+            // Send WhatsApp message (opens WhatsApp with pre-filled message)
+            if (employee.whatsapp) {
+                const message = `Hi ${employeeName}, you have successfully punched out. Thank you!`;
+                const whatsappUrl = `https://wa.me/${employee.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+                window.open(whatsappUrl, '_blank');
+            }
+            
+            // Send email notification
+            if (employee.email) {
+                const templateParams = {
+                    to_email: employee.email,
+                    to_name: employeeName,
+                    message: `Hi ${employeeName}, you have successfully punched out. Thank you!`
+                };
+                
+                emailjs.send('service_nlk542o', 'template_fyvulbh', templateParams)
+                    .then(function(response) {
+                        console.log('Email sent successfully:', response);
+                    }, function(error) {
+                        console.log('Email failed:', error);
+                    });
+            }
+        });
+    }
+    
+    // Update Punch Out to send notifications
+    $('#punchOutBtn').click(function() {
+        const employeeId = $('#employeeId').val();
+        const employeeName = $('#employeeName').val();
+        const timestamp = new Date();
+        
+        if (employeeId && employeeName) {
+            setPunchButtons(false);
+            showStatus('Fetching location, please wait...');
+            fetchLocation(function(location, locationName) {
+                if (!location || location === 'Location unavailable' || location === 'Geolocation not supported') {
+                    alert('Location not available. Please allow location access and try again.');
+                    setPunchButtons(true);
+                    clearStatus();
+                    return;
+                }
+                addAttendance({
+                    id: employeeId,
+                    name: employeeName,
+                    action: 'Punch Out',
+                    time: timestamp.toISOString(),
+                    location: location,
+                    locationName: locationName
+                }).then(() => {
+                    alert('Punched Out Successfully!');
+                    $('#employeeId').val('');
+                    $('#employeeName').val('');
+                    setPunchButtons(true);
+                    clearStatus();
+                    // Clear Punch Out notification timer
+                    clearPunchOutNotification();
+                    // Send WhatsApp/Email notifications
+                    sendPunchOutNotifications(employeeId, employeeName);
+                });
+            });
+        } else {
+            alert('Please select Employee.');
+        }
+    });
+
+    // Show Edit Profile section for employee (not admin)
+    if (!isAdmin) {
+        // Use the currentEmployeeId set at login
+        const empId = currentEmployeeId;
+        if (empId) {
+            db.ref('employees/' + empId).once('value').then(snapshot => {
+                const emp = snapshot.val();
+                if (emp) {
+                    // Show encrypted value by default
+                    $('#editWhatsapp').val(emp.whatsapp || '');
+                    $('#editEmail').val(emp.email || '');
+                    // Add Show buttons if not present
+                    if ($('#showWhatsappBtn').length === 0) {
+                        $('<button type="button" id="showWhatsappBtn" style="margin-left:8px;">Show</button>').insertAfter('#editWhatsapp');
+                    }
+                    if ($('#showEmailBtn').length === 0) {
+                        $('<button type="button" id="showEmailBtn" style="margin-left:8px;">Show</button>').insertAfter('#editEmail');
+                    }
+                    // Show green check if both fields are filled
+                    if ((emp.whatsapp && emp.whatsapp.trim() !== '') && (emp.email && emp.email.trim() !== '')) {
+                        $('#profileUpdateSuccess').show();
+                    } else {
+                        $('#profileUpdateSuccess').hide();
+                    }
+                }
+            });
+        }
+        // Show/decrypt on button click with Employee ID check
+        $(document).off('click', '#showWhatsappBtn').on('click', '#showWhatsappBtn', function() {
+            const entered = prompt('Enter your Employee ID to view your WhatsApp:');
+            if (entered && entered.trim() === currentEmployeeId.trim()) {
+                const val = $('#editWhatsapp').val();
+                $('#editWhatsapp').val(decrypt(val));
+                $(this).remove();
+            } else {
+                alert('Incorrect Employee ID!');
+            }
+        });
+        $(document).off('click', '#showEmailBtn').on('click', '#showEmailBtn', function() {
+            const entered = prompt('Enter your Employee ID to view your Email:');
+            if (entered && entered.trim() === currentEmployeeId.trim()) {
+                const val = $('#editEmail').val();
+                $('#editEmail').val(decrypt(val));
+                $(this).remove();
+            } else {
+                alert('Incorrect Employee ID!');
+            }
+        });
+        $('#editProfileForm').submit(function(e) {
+            e.preventDefault();
+            if (!empId) return;
+            let whatsapp = $('#editWhatsapp').val().trim();
+            let email = $('#editEmail').val().trim();
+            // Encrypt only if not already encrypted
+            if (!isEncrypted(whatsapp)) whatsapp = encrypt(whatsapp);
+            if (!isEncrypted(email)) email = encrypt(email);
+            db.ref('employees/' + empId).update({ whatsapp, email }).then(() => {
+                $('#profileUpdateSuccess').show();
+                setTimeout(() => $('#profileUpdateSuccess').fadeOut(500), 2000);
+            });
+        });
+    } else {
+        // Admin sees decrypted value
+        const empId = currentEmployeeId;
+        if (empId) {
+            db.ref('employees/' + empId).once('value').then(snapshot => {
+                const emp = snapshot.val();
+                if (emp) {
+                    $('#editWhatsapp').val(decrypt(emp.whatsapp || ''));
+                    $('#editEmail').val(decrypt(emp.email || ''));
+                    $('#editProfileSection').show();
+                    if ((decrypt(emp.whatsapp) && decrypt(emp.whatsapp).trim() !== '') && (decrypt(emp.email) && decrypt(emp.email).trim() !== '')) {
+                        $('#profileUpdateSuccess').show();
+                    } else {
+                        $('#profileUpdateSuccess').hide();
+                    }
+                }
+            });
+        }
+    }
+
+    // Add/Edit Contact Info section for employees (not admin)
+    if (!isAdmin) {
+        db.ref('employees/' + currentEmployeeId).once('value').then(snapshot => {
+            const emp = snapshot.val();
+            // Remove any existing section to avoid duplicates
+            $('#editContactInfoSection').remove();
+            // Show section if WhatsApp or Email is missing, or always allow update
+            const html = `
+        <div id="editContactInfoSection" style="margin:30px 0;padding:18px 24px;background:#f8f9fa;border-radius:8px;max-width:400px;">
+            <h3>Edit Contact Info</h3>
+            <form id="editContactInfoForm">
+                <label>WhatsApp Number:</label>
+                <input type="text" id="editContactWhatsapp" style="margin-bottom:8px;width:220px;" readonly>
+                <button type="button" id="showWhatsappBtn" style="margin-left:8px;">Show</button><br>
+                <label>Email:</label>
+                <input type="text" id="editContactEmail" style="margin-bottom:8px;width:220px;" readonly>
+                <button type="button" id="showEmailBtn" style="margin-left:8px;">Show</button><br>
+                <span id="contactCheckIcon" style="display:none;color:green;font-size:1.5em;vertical-align:middle;">✔️</span>
+                <button type="submit" style="margin-top:10px;">Save</button>
+            </form>
+            <div id="editContactSuccess" style="color:green;display:none;margin-top:8px;">Contact info updated!</div>
+        </div>`;
+            $('#leaveSection').before(html);
+            // Show encrypted by default
+            $('#editContactWhatsapp').val(emp && emp.whatsapp ? maskPhoneLast3(decrypt(emp.whatsapp)) : '');
+            $('#editContactEmail').val(emp && emp.email ? maskEmailPartial(decrypt(emp.email)) : '');
+            // Show button logic
+            $(document).off('click', '#showWhatsappBtn').on('click', '#showWhatsappBtn', function() {
+                $('#editContactWhatsapp').val(emp && emp.whatsapp ? decrypt(emp.whatsapp) : '').prop('readonly', false);
+                $(this).remove();
+                checkContactFields();
+            });
+            $(document).off('click', '#showEmailBtn').on('click', '#showEmailBtn', function() {
+                $('#editContactEmail').val(emp && emp.email ? decrypt(emp.email) : '').prop('readonly', false);
+                $(this).remove();
+                checkContactFields();
+            });
+            // On input, check for green check
+            $('#editContactWhatsapp, #editContactEmail').on('input', checkContactFields);
+            function checkContactFields() {
+                const w = $('#editContactWhatsapp').val().trim();
+                const e = $('#editContactEmail').val().trim();
+                if (w && e && $('#editContactWhatsapp').prop('readonly') === false && $('#editContactEmail').prop('readonly') === false) {
+                    $('#contactCheckIcon').show();
+                } else {
+                    $('#contactCheckIcon').hide();
+                }
+            }
+            // On submit, encrypt and update, then revert to encrypted view
+            $('#editContactInfoForm').off('submit').on('submit', function(e) {
+                e.preventDefault();
+                const whatsapp = $('#editContactWhatsapp').val().trim();
+                const email = $('#editContactEmail').val().trim();
+                db.ref('employees/' + currentEmployeeId).update({
+                    whatsapp: encrypt(whatsapp),
+                    email: encrypt(email)
+                }).then(() => {
+                    $('#editContactSuccess').show();
+                    setTimeout(() => $('#editContactSuccess').fadeOut(500), 2000);
+                    // After update, revert to encrypted view and static green check if both present
+                    $('#editContactWhatsapp').val(whatsapp ? encrypt(whatsapp) : '').prop('readonly', true);
+                    $('#editContactEmail').val(email ? encrypt(email) : '').prop('readonly', true);
+                    if (whatsapp && email) {
+                        $('#contactCheckIcon').show();
+                    } else {
+                        $('#contactCheckIcon').hide();
+                    }
+                    // Re-add Show buttons if missing
+                    if ($('#showWhatsappBtn').length === 0) {
+                        $('<button type="button" id="showWhatsappBtn" style="margin-left:8px;">Show</button>').insertAfter('#editContactWhatsapp');
+                    }
+                    if ($('#showEmailBtn').length === 0) {
+                        $('<button type="button" id="showEmailBtn" style="margin-left:8px;">Show</button>').insertAfter('#editContactEmail');
+                    }
+                });
+            });
+        });
+    }
+
+    // Remove Add Your Contact Info section and logic
+    $('#addContactInfoSection').remove();
+
+    // Remove Edit Contact Info section and logic for employees (only once)
+    if ($('#editContactInfoSection').length) {
+        $('#editContactInfoSection').remove();
+    }
 });
