@@ -133,8 +133,8 @@ $(document).ready(function() {
         db.ref('employees').on('value', (snapshot) => {
             const data = snapshot.val() || {};
             employees = Object.values(data);
-            if (callback) callback(employees);
             updateDropdown();
+            if (callback) callback(employees);
         });
     }
 
