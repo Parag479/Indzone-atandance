@@ -912,4 +912,34 @@ $(document).ready(function() {
     if ($('#editContactInfoSection').length) {
         $('#editContactInfoSection').remove();
     }
+
+    // Attendance table show more/less logic
+    function updateAttendanceRows(showAll) {
+        const $rows = $('#attendanceRecords tbody tr');
+        if (showAll) {
+            $rows.show();
+            $('#toggleAttendanceRows').text('Show Less');
+        } else {
+            $rows.each(function(i) {
+                $(this).toggle(i < 10);
+            });
+            $('#toggleAttendanceRows').text('Show More');
+        }
+    }
+    // Initial state: show only 10 rows
+    $(document).on('attendanceTableUpdated', function() {
+        updateAttendanceRows(false);
+    });
+    // Toggle button
+    let showAllRows = false;
+    $('#toggleAttendanceRows').on('click', function() {
+        showAllRows = !showAllRows;
+        updateAttendanceRows(showAllRows);
+    });
+    // After table render, trigger event
+    const origRenderTable = window.renderTable;
+    window.renderTable = function(data) {
+        origRenderTable(data);
+        $(document).trigger('attendanceTableUpdated');
+    };
 });
