@@ -407,8 +407,14 @@ function maskEmailPartial(email) {
 function renderPendingPunchOuts() {
     const $panel = $('#pendingPunchOutPanel');
     $panel.empty();
+    if (!isAdmin) {
+        $panel.hide();
+        return;
+    } else {
+        $panel.show();
+    }
     $panel.append('<h2>Pending Early Punch Out Requests</h2>');
-    $panel.append('<table id="pendingTable"><thead><tr><th>Employee ID</th><th>Name</th><th>Reason</th><th>Time</th><th>Action</th></tr></thead><tbody></tbody></table>');
+    $panel.append('<table id="pendingTable" class="styled-punchout-table"><thead><tr><th>Employee ID</th><th>Name</th><th>Reason</th><th>Time</th><th>Action</th></tr></thead><tbody></tbody></table>');
     const $tbody = $panel.find('tbody');
     firebase.database().ref('pending_punchout').on('value', function(snapshot) {
         $tbody.empty();
@@ -432,7 +438,7 @@ function renderMyPunchOutRequests(employeeId) {
     const $panel = $('#myPunchOutPanel');
     $panel.empty();
     $panel.append('<h2>My Early Punch Out Requests</h2>');
-    $panel.append('<table id="myPunchOutTable"><thead><tr><th>Reason</th><th>Time</th><th>Status</th></tr></thead><tbody></tbody></table>');
+    $panel.append('<table id="myPunchOutTable" class="styled-punchout-table"><thead><tr><th>Reason</th><th>Time</th><th>Status</th></tr></thead><tbody></tbody></table>');
     const $tbody = $panel.find('tbody');
     // Fetch pending requests
     firebase.database().ref('pending_punchout').orderByChild('id').equalTo(employeeId).on('value', function(snapshot) {
@@ -442,10 +448,10 @@ function renderMyPunchOutRequests(employeeId) {
             $tbody.append(`<tr>
                 <td>${req.reason}</td>
                 <td>${new Date(req.time).toLocaleString()}</td>
-                <td>Pending</td>
+                <td><span style="color:#E70000;font-weight:bold;">Pending</span></td>
             </tr>`);
         });
-        // Fetch approved/rejected from attendance (with reason)
+        // Fetch approved from attendance (with reason)
         firebase.database().ref('attendance').orderByChild('id').equalTo(employeeId).once('value').then(snap => {
             const attData = snap.val() || {};
             Object.values(attData).forEach(r => {
@@ -453,12 +459,60 @@ function renderMyPunchOutRequests(employeeId) {
                     $tbody.append(`<tr>
                         <td>${r.reason}</td>
                         <td>${new Date(r.time).toLocaleString()}</td>
-                        <td>Approved</td>
+                        <td><span style="color:#28a745;font-weight:bold;">Approved</span></td>
                     </tr>`);
                 }
             });
         });
     });
+}
+
+// Add CSS for styled-punchout-table
+if (!document.getElementById('styledPunchoutTableCSS')) {
+    const style = document.createElement('style');
+    style.id = 'styledPunchoutTableCSS';
+    style.innerHTML = `
+    .styled-punchout-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 18px 0 24px 0;
+        background: #f8f9fa;
+        box-shadow: 0 2px 8px #e0e6f1;
+    }
+    .styled-punchout-table th, .styled-punchout-table td {
+        border: 1px solid #d1dbe6;
+        padding: 10px 14px;
+        text-align: left;
+    }
+    .styled-punchout-table th {
+        background: #003F8C;
+        color: #fff;
+        font-weight: bold;
+    }
+    .styled-punchout-table tr:nth-child(even) {
+        background: #f0f4fa;
+    }
+    .styled-punchout-table tr:nth-child(odd) {
+        background: #fff;
+    }
+    .styled-punchout-table button {
+        padding: 5px 12px;
+        border-radius: 5px;
+        border: none;
+        margin-right: 6px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    .styled-punchout-table .approve-btn {
+        background: #28a745;
+        color: #fff;
+    }
+    .styled-punchout-table .reject-btn {
+        background: #E70000;
+        color: #fff;
+    }
+    `;
+    document.head.appendChild(style);
 }
 
 $(document).ready(function() {
