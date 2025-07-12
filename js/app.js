@@ -188,99 +188,114 @@ $(document).ready(function() {
         try { return decodeURIComponent(escape(atob(str))); } catch (e) { return str; }
     }
 
-    // --- Inspect/Right Click Blocker (Toggleable) ---
-    window.blockInspect = false; // Default: Inspect allowed
-
-    function toggleInspectBlock(onOff) {
-      window.blockInspect = !!onOff;
-      if (window.blockInspect) {
-        // Block right click
+    // --- Robust Inspect/Right Click Blocker ---
+    (function() {
+      // Enable block by default
+      window.blockInspect = true;
+      // Toast function
+      function showToast(msg) {
+        let toast = document.getElementById('inspectToast');
+        if (!toast) {
+          toast = document.createElement('div');
+          toast.id = 'inspectToast';
+          toast.style.position = 'fixed';
+          toast.style.bottom = '30px';
+          toast.style.left = '50%';
+          toast.style.transform = 'translateX(-50%)';
+          toast.style.background = '#222';
+          toast.style.color = '#fff';
+          toast.style.padding = '10px 24px';
+          toast.style.borderRadius = '8px';
+          toast.style.fontSize = '16px';
+          toast.style.zIndex = 99999;
+          toast.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+          document.body.appendChild(toast);
+        }
+        toast.textContent = msg;
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 1500);
+      }
+      // Blockers
+      function blockContextMenu(e) { if (window.blockInspect) e.preventDefault(); }
+      function blockKeydown(e) {
+        if (!window.blockInspect) return;
+        // F12, Ctrl+Shift+I/J/C/K, Ctrl+U, Ctrl+S, Ctrl+P, Ctrl+F
+        if (
+          e.keyCode === 123 || // F12
+          (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67 || e.keyCode === 75)) || // Ctrl+Shift+I/J/C/K
+          (e.ctrlKey && (e.keyCode === 85 || e.keyCode === 83 || e.keyCode === 80 || e.keyCode === 70)) // Ctrl+U/S/P/F
+        ) {
+          e.preventDefault();
+        }
+      }
+      // Attach listeners, and re-attach if removed
+      function attachBlockers() {
         document.addEventListener('contextmenu', blockContextMenu, true);
-        // Block F12, Ctrl+Shift+I/J, Ctrl+U
         document.addEventListener('keydown', blockKeydown, true);
-      } else {
+      }
+      function detachBlockers() {
         document.removeEventListener('contextmenu', blockContextMenu, true);
         document.removeEventListener('keydown', blockKeydown, true);
       }
-    }
-
-    function blockContextMenu(e) {
-      if (window.blockInspect) e.preventDefault();
-    }
-    function blockKeydown(e) {
-      if (!window.blockInspect) return;
-      // F12
-      if (e.keyCode === 123) e.preventDefault();
-      // Ctrl+Shift+I
-      if (e.ctrlKey && e.shiftKey && e.keyCode === 73) e.preventDefault();
-      // Ctrl+Shift+J
-      if (e.ctrlKey && e.shiftKey && e.keyCode === 74) e.preventDefault();
-      // Ctrl+U
-      if (e.ctrlKey && e.keyCode === 85) e.preventDefault();
-    }
-
-    // Optionally, auto-enable on page load:
-    // toggleInspectBlock(true);
-
-    // --- Secret Toggle Button for Inspect Block ---
-    (function() {
-      // Create button
-      var btn = document.createElement('button');
-      btn.id = 'inspectToggleBtn';
-      btn.style.position = 'fixed';
-      btn.style.bottom = '20px';
-      btn.style.right = '20px';
-      btn.style.zIndex = 9999;
-      btn.style.display = 'none';
-      btn.style.padding = '10px 18px';
-      btn.style.background = '#222';
-      btn.style.color = '#fff';
-      btn.style.border = 'none';
-      btn.style.borderRadius = '6px';
-      btn.style.fontSize = '15px';
-      btn.style.cursor = 'pointer';
-      btn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
-      btn.textContent = 'Block Inspect: OFF';
-      document.body.appendChild(btn);
-
-      function updateBtn() {
-        btn.textContent = 'Block Inspect: ' + (window.blockInspect ? 'ON' : 'OFF');
-        btn.style.background = window.blockInspect ? '#c00' : '#222';
-      }
-
-      btn.onclick = function() {
-        toggleInspectBlock(!window.blockInspect);
-        updateBtn();
-      };
-
-      // Secret key combo: Ctrl+Shift+1 to show/hide button
+      attachBlockers();
+      // Watch for removal and re-attach
+      setInterval(() => {
+        attachBlockers();
+      }, 1000);
+      // Only allow toggle with Ctrl+1 and a secret code
+      let unlock = false;
       document.addEventListener('keydown', function(e) {
-        if (e.ctrlKey && e.shiftKey && e.key === '1') {
-          btn.style.display = btn.style.display === 'none' ? 'block' : 'none';
-          updateBtn();
+        if (e.ctrlKey && !e.shiftKey && e.key === '1') {
+          if (!unlock) {
+            const code = prompt('Enter admin code to toggle inspect block:');
+            if (code === 'indzone@123') {
+              unlock = true;
+              showToast('Admin mode enabled');
+            } else {
+              showToast('Wrong code!');
+              return;
+            }
+          }
+          window.blockInspect = !window.blockInspect;
+          if (window.blockInspect) {
+            attachBlockers();
+            showToast('Inspect Block: ON');
+          } else {
+            detachBlockers();
+            showToast('Inspect Block: OFF');
+          }
         }
       });
-
-      // Keep button state in sync if toggled elsewhere
-      var origToggle = window.toggleInspectBlock;
-      window.toggleInspectBlock = function(onOff) {
-        origToggle(onOff);
-        updateBtn();
-      };
-    })();
-
-    // --- Ctrl+1: Toggle Inspect Block instantly ---
-    document.addEventListener('keydown', function(e) {
-      if (e.ctrlKey && !e.shiftKey && e.key === '1') {
-        window.toggleInspectBlock(!window.blockInspect);
-        // Optional: show a quick toast/alert
-        if (window.blockInspect) {
-          console.log('Inspect Block: ON');
-        } else {
-          console.log('Inspect Block: OFF');
+      // Block inspect on load
+      window.addEventListener('DOMContentLoaded', function() {
+        window.blockInspect = true;
+        attachBlockers();
+        showToast('Inspect Block: ON');
+      });
+      // Prevent tampering
+      Object.defineProperty(window, 'blockInspect', {
+        configurable: false,
+        writable: true,
+        enumerable: true
+      });
+      Object.defineProperty(window, 'toggleInspectBlock', {
+        configurable: false,
+        writable: false,
+        enumerable: false,
+        value: function(onOff) {
+          // Only allow if unlocked
+          if (!unlock) return;
+          window.blockInspect = !!onOff;
+          if (window.blockInspect) {
+            attachBlockers();
+            showToast('Inspect Block: ON');
+          } else {
+            detachBlockers();
+            showToast('Inspect Block: OFF');
+          }
         }
-      }
-    });
+      });
+    })();
 
     $('#punchInBtn').click(function() {
         const employeeId = $('#employeeId').val();
