@@ -372,20 +372,42 @@ $(document).ready(function() {
                     // Find latest punch in
                     const lastPunchIn = userRecords.filter(r => r.action === 'Punch In').sort((a, b) => new Date(b.time) - new Date(a.time))[0];
                     let allowPunchOut = true;
+                    let punchOutEarly = false;
                     if (lastPunchIn) {
                         const inTime = new Date(lastPunchIn.time);
                         const now = new Date();
                         const diffMs = now - inTime;
                         const hours = diffMs / (1000 * 60 * 60);
                         if (hours < 8) {
-                            allowPunchOut = confirm('8 hours not complete. Are you sure you want to punch out?');
+                            punchOutEarly = true;
                         }
                     }
-                    if (!allowPunchOut) {
-                        setPunchButtons(true);
-                        clearStatus();
+                    if (punchOutEarly) {
+                        const reason = prompt('8 hours not complete. Please enter reason for early Punch Out:');
+                        if (!reason || !reason.trim()) {
+                            alert('Reason is required for early Punch Out.');
+                            setPunchButtons(true);
+                            clearStatus();
+                            return;
+                        }
+                        // Save to pending_punchout for admin approval
+                        db.ref('pending_punchout').push({
+                            id: employeeId,
+                            name: employeeName,
+                            action: 'Punch Out',
+                            time: timestamp.toISOString(),
+                            location: location,
+                            locationName: locationName,
+                            reason: reason,
+                            status: 'pending'
+                        }).then(() => {
+                            alert('Punch Out request sent for admin approval.');
+                            setPunchButtons(true);
+                            clearStatus();
+                        });
                         return;
                     }
+                    // Normal Punch Out (8+ hours)
                     addAttendance({
                         id: employeeId,
                         name: employeeName,

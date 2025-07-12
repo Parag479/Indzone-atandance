@@ -403,6 +403,31 @@ function maskEmailPartial(email) {
     return user[0] + '*'.repeat(user.length - 4) + user.slice(-3) + '@' + domain;
 }
 
+// --- Admin Approval Panel for Pending Punch Outs ---
+function renderPendingPunchOuts() {
+    const $panel = $('#pendingPunchOutPanel');
+    $panel.empty();
+    $panel.append('<h2>Pending Early Punch Out Requests</h2>');
+    $panel.append('<table id="pendingTable"><thead><tr><th>Employee ID</th><th>Name</th><th>Reason</th><th>Time</th><th>Action</th></tr></thead><tbody></tbody></table>');
+    const $tbody = $panel.find('tbody');
+    firebase.database().ref('pending_punchout').on('value', function(snapshot) {
+        $tbody.empty();
+        const data = snapshot.val() || {};
+        Object.entries(data).forEach(([key, req]) => {
+            $tbody.append(`<tr>
+                <td>${req.id}</td>
+                <td>${req.name}</td>
+                <td>${req.reason}</td>
+                <td>${new Date(req.time).toLocaleString()}</td>
+                <td>
+                    <button class="approve-btn" data-key="${key}">Approve</button>
+                    <button class="reject-btn" data-key="${key}">Reject</button>
+                </td>
+            </tr>`);
+        });
+    });
+}
+
 $(document).ready(function() {
     // Prompt for Employee ID at page load
     currentEmployeeId = prompt('Enter your Employee ID to view your attendance:');
@@ -942,4 +967,40 @@ $(document).ready(function() {
         origRenderTable(data);
         $(document).trigger('attendanceTableUpdated');
     };
+
+    if ($('#pendingPunchOutPanel').length === 0) {
+        $('<div id="pendingPunchOutPanel" style="margin:30px 0;"></div>').insertBefore('#exportPanel');
+    }
+    renderPendingPunchOuts();
+
+    // Approve/Reject handlers
+    $(document).on('click', '.approve-btn', function() {
+        const key = $(this).data('key');
+        firebase.database().ref('pending_punchout/' + key).once('value').then(function(snapshot) {
+            const req = snapshot.val();
+            if (!req) return;
+            // Add to attendance
+            firebase.database().ref('attendance').push({
+                id: req.id,
+                name: req.name,
+                action: 'Punch Out',
+                time: req.time,
+                location: req.location,
+                locationName: req.locationName,
+                reason: req.reason,
+                approvedBy: 'admin',
+                approvedAt: new Date().toISOString()
+            }).then(function() {
+                // Remove pending request
+                firebase.database().ref('pending_punchout/' + key).remove();
+                alert('Punch Out approved and recorded.');
+            });
+        });
+    });
+    $(document).on('click', '.reject-btn', function() {
+        const key = $(this).data('key');
+        firebase.database().ref('pending_punchout/' + key).remove().then(function() {
+            alert('Punch Out request rejected.');
+        });
+    });
 });
