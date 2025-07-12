@@ -246,6 +246,22 @@ input[type="submit"]:hover, button:hover, .export-link:hover {
     color: #fff;
 }
 
+/* Attendance Records Table Scroll (max 10 rows visible) */
+#attendanceRecords .table-responsive {
+  max-height: 420px; /* ~10 rows, adjust as needed */
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid #e0e6f1;
+  border-radius: 8px;
+  background: #fff;
+}
+#attendanceRecords table {
+  margin-bottom: 0;
+}
+#attendanceRecords tbody tr:nth-child(n+11) {
+  /* No special style, just for clarity: rows after 10 will be hidden by scroll */
+}
+
 /* Responsive Design */
 @media (max-width: 700px) {
     .container {
