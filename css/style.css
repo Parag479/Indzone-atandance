@@ -248,9 +248,9 @@ input[type="submit"]:hover, button:hover, .export-link:hover {
 
 /* Attendance Records Table Scroll (max 10 rows visible) */
 #attendanceRecords .table-responsive {
-  max-height: 420px; /* ~10 rows, adjust as needed */
-  overflow-y: auto;
-  overflow-x: hidden;
+  max-height: none;
+  overflow-y: visible;
+  overflow-x: visible;
   border: 1px solid #e0e6f1;
   border-radius: 8px;
   background: #fff;
