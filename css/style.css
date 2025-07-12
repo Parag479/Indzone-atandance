@@ -258,9 +258,6 @@ input[type="submit"]:hover, button:hover, .export-link:hover {
 #attendanceRecords table {
   margin-bottom: 0;
 }
-#attendanceRecords tbody tr:nth-child(n+11) {
-  /* No special style, just for clarity: rows after 10 will be hidden by scroll */
-}
 
 /* Responsive Design */
 @media (max-width: 700px) {
