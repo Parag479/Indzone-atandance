@@ -950,10 +950,10 @@ $(document).ready(function() {
             <h3>Edit Contact Info</h3>
             <form id="editContactInfoForm">
                 <label>WhatsApp Number:</label>
-                <input type="text" id="editContactWhatsapp" style="margin-bottom:8px;width:220px;" readonly>
+                <input type="text" id="editContactWhatsapp" style="margin-bottom:8px;width:220px;" placeholder="e.g. +91 98765 43210" readonly>
                 <button type="button" id="showWhatsappBtn" style="margin-left:8px;">Show</button><br>
                 <label>Email:</label>
-                <input type="text" id="editContactEmail" style="margin-bottom:8px;width:220px;" readonly>
+                <input type="text" id="editContactEmail" style="margin-bottom:8px;width:220px;" placeholder="e.g. rahul@company.com" readonly>
                 <button type="button" id="showEmailBtn" style="margin-left:8px;">Show</button><br>
                 <span id="contactCheckIcon" style="display:none;color:green;font-size:1.5em;vertical-align:middle;">✔️</span>
                 <button type="submit" style="margin-top:10px;">Save</button>
@@ -962,16 +962,16 @@ $(document).ready(function() {
         </div>`;
             $('#leaveSection').before(html);
             // Show encrypted by default
-            $('#editContactWhatsapp').val(emp && emp.whatsapp ? maskPhoneLast3(decrypt(emp.whatsapp)) : '');
-            $('#editContactEmail').val(emp && emp.email ? maskEmailPartial(decrypt(emp.email)) : '');
+            $('#editContactWhatsapp').val(emp && emp.whatsapp ? maskPhoneLast3(decrypt(emp.whatsapp)) : '').attr('placeholder', 'e.g. +91 98765 43210');
+            $('#editContactEmail').val(emp && emp.email ? maskEmailPartial(decrypt(emp.email)) : '').attr('placeholder', 'e.g. rahul@company.com');
             // Show button logic
             $(document).off('click', '#showWhatsappBtn').on('click', '#showWhatsappBtn', function() {
-                $('#editContactWhatsapp').val(emp && emp.whatsapp ? decrypt(emp.whatsapp) : '').prop('readonly', false);
+                $('#editContactWhatsapp').val(emp && emp.whatsapp ? decrypt(emp.whatsapp) : '').prop('readonly', false).attr('placeholder', 'e.g. +91 98765 43210');
                 $(this).remove();
                 checkContactFields();
             });
             $(document).off('click', '#showEmailBtn').on('click', '#showEmailBtn', function() {
-                $('#editContactEmail').val(emp && emp.email ? decrypt(emp.email) : '').prop('readonly', false);
+                $('#editContactEmail').val(emp && emp.email ? decrypt(emp.email) : '').prop('readonly', false).attr('placeholder', 'e.g. rahul@company.com');
                 $(this).remove();
                 checkContactFields();
             });
@@ -998,8 +998,8 @@ $(document).ready(function() {
                     $('#editContactSuccess').show();
                     setTimeout(() => $('#editContactSuccess').fadeOut(500), 2000);
                     // After update, revert to encrypted view and static green check if both present
-                    $('#editContactWhatsapp').val(whatsapp ? encrypt(whatsapp) : '').prop('readonly', true);
-                    $('#editContactEmail').val(email ? encrypt(email) : '').prop('readonly', true);
+                    $('#editContactWhatsapp').val(whatsapp ? encrypt(whatsapp) : '').prop('readonly', true).attr('placeholder', 'e.g. +91 98765 43210');
+                    $('#editContactEmail').val(email ? encrypt(email) : '').prop('readonly', true).attr('placeholder', 'e.g. rahul@company.com');
                     if (whatsapp && email) {
                         $('#contactCheckIcon').show();
                     } else {
