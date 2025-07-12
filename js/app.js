@@ -324,7 +324,7 @@ $(document).ready(function() {
         }
     });
 
-    $('#punchOutBtn').click(function() {
+    $('#punchOutBtn').off('click').on('click', function() {
         const employeeId = $('#employeeId').val();
         const employeeName = $('#employeeName').val();
         const timestamp = new Date();
@@ -338,21 +338,42 @@ $(document).ready(function() {
                     clearStatus();
                     return;
                 }
-                addAttendance({
-                    id: employeeId,
-                    name: employeeName,
-                    action: 'Punch Out',
-                    time: timestamp.toISOString(),
-                    location: location,
-                    locationName: locationName
-                }).then(() => {
-                    alert('Punched Out Successfully!');
-                    $('#employeeId').val('');
-                    $('#employeeName').val('');
-                    setPunchButtons(true);
-                    clearStatus();
-                    // Clear Punch Out notification timer
-                    clearPunchOutNotification();
+                // Find last punch in for this employee
+                fetchAttendance(function(records) {
+                    const userRecords = records.filter(r => r.id === employeeId);
+                    // Find latest punch in
+                    const lastPunchIn = userRecords.filter(r => r.action === 'Punch In').sort((a, b) => new Date(b.time) - new Date(a.time))[0];
+                    let allowPunchOut = true;
+                    if (lastPunchIn) {
+                        const inTime = new Date(lastPunchIn.time);
+                        const now = new Date();
+                        const diffMs = now - inTime;
+                        const hours = diffMs / (1000 * 60 * 60);
+                        if (hours < 8) {
+                            allowPunchOut = confirm('8 hours not complete. Are you sure you want to punch out?');
+                        }
+                    }
+                    if (!allowPunchOut) {
+                        setPunchButtons(true);
+                        clearStatus();
+                        return;
+                    }
+                    addAttendance({
+                        id: employeeId,
+                        name: employeeName,
+                        action: 'Punch Out',
+                        time: timestamp.toISOString(),
+                        location: location,
+                        locationName: locationName
+                    }).then(() => {
+                        alert('Punched Out Successfully!');
+                        $('#employeeId').val('');
+                        $('#employeeName').val('');
+                        setPunchButtons(true);
+                        clearStatus();
+                        // Clear Punch Out notification timer
+                        clearPunchOutNotification();
+                    });
                 });
             });
         } else {
