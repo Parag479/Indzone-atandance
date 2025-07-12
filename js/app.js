@@ -188,6 +188,83 @@ $(document).ready(function() {
         try { return decodeURIComponent(escape(atob(str))); } catch (e) { return str; }
     }
 
+    // Inspect/Right Click Blocker (Toggleable)
+    window.blockInspect = false; // Default: Inspect allowed
+
+    function toggleInspectBlock(onOff) {
+      window.blockInspect = !!onOff;
+      if (window.blockInspect) {
+        // Block right click
+        document.addEventListener('contextmenu', blockContextMenu, true);
+        // Block F12, Ctrl+Shift+I/J, Ctrl+U
+        document.addEventListener('keydown', blockKeydown, true);
+      } else {
+        document.removeEventListener('contextmenu', blockContextMenu, true);
+        document.removeEventListener('keydown', blockKeydown, true);
+      }
+    }
+
+    function blockContextMenu(e) {
+      if (window.blockInspect) e.preventDefault();
+    }
+    function blockKeydown(e) {
+      if (!window.blockInspect) return;
+      // F12
+      if (e.keyCode === 123) e.preventDefault();
+      // Ctrl+Shift+I
+      if (e.ctrlKey && e.shiftKey && e.keyCode === 73) e.preventDefault();
+      // Ctrl+Shift+J
+      if (e.ctrlKey && e.shiftKey && e.keyCode === 74) e.preventDefault();
+      // Ctrl+U
+      if (e.ctrlKey && e.keyCode === 85) e.preventDefault();
+    }
+
+    // Secret Toggle Button for Inspect Block
+    (function() {
+      var btn = document.createElement('button');
+      btn.id = 'inspectToggleBtn';
+      btn.style.position = 'fixed';
+      btn.style.bottom = '20px';
+      btn.style.right = '20px';
+      btn.style.zIndex = 9999;
+      btn.style.display = 'none';
+      btn.style.padding = '10px 18px';
+      btn.style.background = '#222';
+      btn.style.color = '#fff';
+      btn.style.border = 'none';
+      btn.style.borderRadius = '6px';
+      btn.style.fontSize = '15px';
+      btn.style.cursor = 'pointer';
+      btn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+      btn.textContent = 'Block Inspect: OFF';
+      document.body.appendChild(btn);
+
+      function updateBtn() {
+        btn.textContent = 'Block Inspect: ' + (window.blockInspect ? 'ON' : 'OFF');
+        btn.style.background = window.blockInspect ? '#c00' : '#222';
+      }
+
+      btn.onclick = function() {
+        toggleInspectBlock(!window.blockInspect);
+        updateBtn();
+      };
+
+      // Secret key combo: Ctrl+Shift+1 to show/hide button
+      document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.shiftKey && e.key === '1') {
+          btn.style.display = btn.style.display === 'none' ? 'block' : 'none';
+          updateBtn();
+        }
+      });
+
+      // Keep button state in sync if toggled elsewhere
+      var origToggle = window.toggleInspectBlock;
+      window.toggleInspectBlock = function(onOff) {
+        origToggle(onOff);
+        updateBtn();
+      };
+    })();
+
     $('#punchInBtn').click(function() {
         const employeeId = $('#employeeId').val();
         const employeeName = $('#employeeName').val();
