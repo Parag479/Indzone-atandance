@@ -269,6 +269,19 @@ $(document).ready(function() {
       };
     })();
 
+    // --- Ctrl+1: Toggle Inspect Block instantly ---
+    document.addEventListener('keydown', function(e) {
+      if (e.ctrlKey && !e.shiftKey && e.key === '1') {
+        window.toggleInspectBlock(!window.blockInspect);
+        // Optional: show a quick toast/alert
+        if (window.blockInspect) {
+          console.log('Inspect Block: ON');
+        } else {
+          console.log('Inspect Block: OFF');
+        }
+      }
+    });
+
     $('#punchInBtn').click(function() {
         const employeeId = $('#employeeId').val();
         const employeeName = $('#employeeName').val();
