@@ -345,7 +345,7 @@ function renderTable(data) {
 
 let currentEmployeeId = null;
 let isAdmin = false;
-const ADMIN_PASSWORD = 'admin@123'; // Change this to your desired admin password
+const ADMIN_PASSWORD = 'admininz@123'; // Change this to your desired admin password
 
 let employeeNameMap = {};
 
