@@ -127,6 +127,10 @@ const db = firebase.database();
 })();
 
 $(document).ready(function() {
+    // Request notification permission on page load if not already granted or denied
+    if (window.Notification && Notification.permission !== "granted" && Notification.permission !== "denied") {
+        Notification.requestPermission();
+    }
     // Fetch employees from Firebase
     let employees = [];
     function fetchEmployees(callback) {
@@ -547,4 +551,65 @@ $(document).ready(function() {
     fetchEmployees();
     // Also clear timer on page unload
     window.addEventListener('beforeunload', clearPunchOutNotification);
+
+    // --- Global Punch Out Notification for All Employees ---
+    function checkAllEmployeesPunchout() {
+        db.ref('attendance').once('value', (snapshot) => {
+            const data = snapshot.val() || {};
+            const records = Object.values(data);
+            const now = new Date();
+            let showNotification = false;
+            let lateEmployees = [];
+            // Group by employee id
+            const grouped = {};
+            records.forEach(r => {
+                if (!grouped[r.id]) grouped[r.id] = [];
+                grouped[r.id].push(r);
+            });
+            Object.keys(grouped).forEach(empId => {
+                const empRecords = grouped[empId].sort((a, b) => new Date(a.time) - new Date(b.time));
+                // Find last punch in and punch out
+                let lastPunchIn = null;
+                let lastPunchOut = null;
+                for (let i = empRecords.length - 1; i >= 0; i--) {
+                    if (!lastPunchIn && empRecords[i].action === 'Punch In') lastPunchIn = empRecords[i];
+                    if (!lastPunchOut && empRecords[i].action === 'Punch Out') lastPunchOut = empRecords[i];
+                    if (lastPunchIn && lastPunchOut) break;
+                }
+                if (lastPunchIn && (!lastPunchOut || new Date(lastPunchIn.time) > new Date(lastPunchOut.time))) {
+                    // Not punched out after last punch in
+                    const inTime = new Date(lastPunchIn.time);
+                    const hours = (now - inTime) / (1000 * 60 * 60);
+                    if (hours >= 8) {
+                        showNotification = true;
+                        lateEmployees.push(empRecords[0].name || empId);
+                    }
+                }
+            });
+            // Show/hide bell badge
+            document.getElementById('bell-badge').style.display = showNotification ? 'block' : 'none';
+            // Optional: Browser notification
+            if (showNotification) {
+                if (Notification && Notification.permission === 'granted') {
+                    new Notification('Punch Out Reminder', {
+                        body: 'Kuch employees ne abhi tak punch out nahi kiya hai: ' + lateEmployees.join(', '),
+                        icon: 'ind_logo.png'
+                    });
+                } else if (Notification && Notification.permission !== 'denied') {
+                    Notification.requestPermission().then(permission => {
+                        if (permission === 'granted') {
+                            new Notification('Punch Out Reminder', {
+                                body: 'Kuch employees ne abhi tak punch out nahi kiya hai: ' + lateEmployees.join(', '),
+                                icon: 'ind_logo.png'
+                            });
+                        }
+                    });
+                }
+            }
+        });
+    }
+    // Page load pe check karo
+    checkAllEmployeesPunchout();
+    // Har 5 minute me auto-refresh
+    setInterval(checkAllEmployeesPunchout, 5 * 60 * 1000);
 });
