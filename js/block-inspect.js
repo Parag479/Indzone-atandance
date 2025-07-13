@@ -44,10 +44,19 @@
   }
   attachBlockers();
   setInterval(() => { attachBlockers(); }, 1000);
-
-  // Ctrl+1 toggles inspect block for everyone (no admin check)
+  // Helper: check if admin cookie is set
+  function isAdmin() {
+    return document.cookie.split(';').some(c => c.trim() === 'isAdmin=1');
+  }
+  // Helper: set admin cookie from console
+  window.setAdminMode = function() {
+    document.cookie = 'isAdmin=1; path=/;';
+    showToast('Admin mode enabled (reload to use Ctrl+1)');
+  };
+  // Only allow toggle with Ctrl+1 if admin cookie is set
   document.addEventListener('keydown', function(e) {
     if (e.ctrlKey && !e.shiftKey && e.key === '1') {
+      if (!isAdmin()) return; // Only admin can toggle
       window.blockInspect = !window.blockInspect;
       if (window.blockInspect) {
         attachBlockers();
@@ -73,6 +82,7 @@
     writable: false,
     enumerable: false,
     value: function(onOff) {
+      if (!isAdmin()) return;
       window.blockInspect = !!onOff;
       if (window.blockInspect) {
         attachBlockers();
