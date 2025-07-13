@@ -66,7 +66,7 @@
           if (window.blockInspect) {
             window.blockInspect = false;
             detachBlockers();
-            showToast('Inspect Block: OFF');
+            showToast('Security: OFF');
           } else {
             showToast('Inspect Block already OFF');
           }
@@ -79,7 +79,7 @@
       if (window.blockInspect) {
         window.blockInspect = false;
         detachBlockers();
-        showToast('Inspect Block: OFF');
+        showToast('Security: OFF');
       } else {
         showToast('Inspect Block already OFF');
       }
@@ -88,7 +88,7 @@
   window.addEventListener('DOMContentLoaded', function() {
     window.blockInspect = true;
     attachBlockers();
-    showToast('Inspect Block: ON');
+    showToast('Security: ON');
   });
   Object.defineProperty(window, 'blockInspect', {
     configurable: false,
@@ -104,7 +104,7 @@
       if (onOff === false && window.blockInspect) {
         window.blockInspect = false;
         detachBlockers();
-        showToast('Inspect Block: OFF');
+        showToast('Security: OFF');
       }
     }
   });
