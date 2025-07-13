@@ -44,13 +44,15 @@
   }
   attachBlockers();
   setInterval(() => { attachBlockers(); }, 1000);
-  // Helper: check if admin cookie is set
+  // Helper: check if admin cookie is set (page-specific)
   function isAdmin() {
-    return document.cookie.split(';').some(c => c.trim() === 'isAdmin=1');
+    const name = 'isAdmin_' + window.location.pathname.replace(/\W/g, '_') + '=';
+    return document.cookie.split(';').some(c => c.trim().startsWith(name + '1'));
   }
-  // Helper: set admin cookie from console
+  // Helper: set admin cookie from console (page-specific)
   window.setAdminMode = function() {
-    document.cookie = 'isAdmin=1; path=/;';
+    const name = 'isAdmin_' + window.location.pathname.replace(/\W/g, '_');
+    document.cookie = name + '=1; path=' + window.location.pathname + ';';
     showToast('Admin mode enabled (reload to use Ctrl+1)');
   };
   // Only allow toggle with Ctrl+1 if admin cookie is set
