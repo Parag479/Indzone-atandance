@@ -2,7 +2,6 @@
 (function() {
   window.blockInspect = true;
   function showToast(msg) {
-    if (msg === 'Inspect Block: ON') return; // Never show ON message
     let toast = document.getElementById('inspectToast');
     if (!toast) {
       toast = document.createElement('div');
@@ -45,23 +44,14 @@
   }
   attachBlockers();
   setInterval(() => { attachBlockers(); }, 1000);
-  // Helper: check if admin cookie is set
-  function isAdmin() {
-    return document.cookie.split(';').some(c => c.trim() === 'isAdmin=1');
-  }
-  // Helper: set admin cookie from console
-  window.setAdminMode = function() {
-    document.cookie = 'isAdmin=1; path=/;';
-    showToast('Admin mode enabled (reload to use Ctrl+1)');
-  };
-  // Only allow toggle with Ctrl+1 if admin cookie is set
+
+  // Ctrl+1 toggles inspect block for everyone (no admin check)
   document.addEventListener('keydown', function(e) {
     if (e.ctrlKey && !e.shiftKey && e.key === '1') {
-      if (!isAdmin()) return; // Only admin can toggle
       window.blockInspect = !window.blockInspect;
       if (window.blockInspect) {
         attachBlockers();
-        // showToast('Inspect Block: ON'); // Still hidden
+        showToast('Inspect Block: ON');
       } else {
         detachBlockers();
         showToast('Inspect Block: OFF');
@@ -71,7 +61,7 @@
   window.addEventListener('DOMContentLoaded', function() {
     window.blockInspect = true;
     attachBlockers();
-    // showToast('Inspect Block: ON'); // Still hidden
+    showToast('Inspect Block: ON');
   });
   Object.defineProperty(window, 'blockInspect', {
     configurable: false,
@@ -83,11 +73,10 @@
     writable: false,
     enumerable: false,
     value: function(onOff) {
-      if (!isAdmin()) return;
       window.blockInspect = !!onOff;
       if (window.blockInspect) {
         attachBlockers();
-        // showToast('Inspect Block: ON'); // Still hidden
+        showToast('Inspect Block: ON');
       } else {
         detachBlockers();
         showToast('Inspect Block: OFF');
