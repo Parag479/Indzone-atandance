@@ -22,6 +22,18 @@ h1, h2 {
     font-weight: 700;
     letter-spacing: 0.5px;
 }
+img.company-logo {
+    display: block;
+    margin: 0 auto 32px auto;
+    max-width: 90vw;
+    max-height: 80px;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,63,140,0.15), 0 1.5px 8px rgba(0,63,140,0.10);
+    background: #fff;
+    border: 2px solid #e0e6f1;
+    padding: 12px;
+    object-fit: contain;
+}
 
 .container {
     background: #fff;
@@ -67,6 +79,7 @@ form input:focus, form select:focus {
     outline: none;
 }
 
+/* --- Premium Button Shadow & Effect --- */
 input[type="submit"], button, .export-link {
     background: #003F8C;
     color: #fff;
@@ -77,16 +90,20 @@ input[type="submit"], button, .export-link {
     font-weight: 700;
     cursor: pointer;
     margin-top: 10px;
-    box-shadow: 0 2px 8px rgba(0,63,140,0.08);
-    transition: background 0.2s, box-shadow 0.2s;
+    box-shadow:
+        0 2px 8px rgba(0,63,140,0.10),
+        0 8px 24px rgba(0,63,140,0.18);
+    transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
     text-decoration: none;
     display: inline-block;
 }
-
 input[type="submit"]:hover, button:hover, .export-link:hover {
     background: #E70000;
     color: #fff;
-    box-shadow: 0 4px 16px rgba(231,0,0,0.12);
+    transform: translateY(-2px) scale(1.03);
+    box-shadow:
+        0 4px 16px rgba(231,0,0,0.18),
+        0 12px 32px rgba(0,63,140,0.10);
 }
 
 .btn-row {
@@ -97,13 +114,16 @@ input[type="submit"]:hover, button:hover, .export-link:hover {
     flex-wrap: wrap;
 }
 
-.table, #attendanceRecords table {
+/* --- Premium Table Shadow & Color --- */
+.table, #attendanceRecords table, #leaveSection table {
     width: 100%;
     border-collapse: collapse;
     margin-top: 20px;
     background: #fff;
+    box-shadow: 0 2px 16px rgba(0,63,140,0.08);
+    border-radius: 10px;
+    overflow: hidden;
 }
-
 .table-responsive, #attendanceRecords {
     width: 100%;
     overflow-x: auto;
@@ -115,74 +135,69 @@ input[type="submit"]:hover, button:hover, .export-link:hover {
     text-align: center;
     white-space: nowrap;
 }
-
-#attendanceRecords th, .table th {
-    background: #f0f4fa;
-    color: #003F8C;
+.table th, #attendanceRecords th, #leaveSection th {
+    background: linear-gradient(90deg, #003F8C 60%, #0059c7 100%);
+    color: #fff;
     font-weight: 700;
 }
-
-#addEmployeeForm {
-    background: #f0f4fa;
-    padding: 15px 10px;
-    border-radius: 10px;
-    margin-bottom: 25px;
-    box-shadow: 0 0 8px #e0e6f1;
+.table tr:hover, #attendanceRecords tr:hover, #leaveSection tr:hover {
+    background: #f4f8ff;
 }
 
-#addEmployeeForm label {
-    margin-top: 0;
+#attendanceRecords tr:nth-child(even) {
+    background: #f4f6fb;
 }
-
-#addEmployeeForm input {
-    margin-bottom: 10px;
+#attendanceRecords tr:hover {
+    background: #e6f0fa;
 }
-
-.company-logo {
-    display: block;
-    margin: 0 auto 24px auto;
-    max-width: 180px;
-    max-height: 120px;
-    border-radius: 12px;
-    box-shadow: 0 2px 12px rgba(0,63,140,0.08);
+#attendanceRecords .leave-status-dropdown {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid #003F8C;
+    font-size: 1rem;
     background: #fff;
+    color: #003F8C;
+    font-weight: 600;
+    transition: border 0.2s;
 }
-
-#employeeList {
-    list-style: none;
-    padding: 0;
+#attendanceRecords .leave-status-dropdown:focus {
+    border: 2px solid #E70000;
+    outline: none;
 }
-#employeeList li {
-    padding: 10px 0;
-    border-bottom: 1px solid #e0e6f1;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 1.05rem;
+#attendanceRecords a {
+    color: #E70000;
+    text-decoration: underline;
+    font-weight: 500;
 }
-.delete-btn {
+#attendanceRecords a:hover {
+    color: #003F8C;
+}
+#attendanceRecords .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 0.98rem;
+}
+#attendanceRecords .badge-pending {
     background: #E70000;
     color: #fff;
-    border: none;
-    border-radius: 4px;
-    padding: 6px 16px;
-    cursor: pointer;
-    font-size: 0.98rem;
-    margin-left: 10px;
-    transition: background 0.2s;
 }
-.delete-btn:hover {
+#attendanceRecords .badge-accepted {
+    background: #28a745;
+    color: #fff;
+}
+#attendanceRecords .badge-rejected {
     background: #003F8C;
     color: #fff;
 }
 
-/* Leave Requests Table Styling */
 #leaveSection table {
     width: 100%;
     border-collapse: collapse;
     margin-top: 18px;
     background: #fff;
-    box-shadow: 0 2px 12px #e0e6f1;
+    box-shadow: 0 2px 16px rgba(0,63,140,0.08);
     border-radius: 10px;
     overflow: hidden;
 }
@@ -193,7 +208,7 @@ input[type="submit"]:hover, button:hover, .export-link:hover {
     font-size: 1rem;
 }
 #leaveSection th {
-    background: #003F8C;
+    background: linear-gradient(90deg, #003F8C 60%, #0059c7 100%);
     color: #fff;
     font-weight: 700;
     letter-spacing: 0.5px;
@@ -272,9 +287,16 @@ input[type="submit"]:hover, button:hover, .export-link:hover {
     form, #addEmployeeForm {
         padding: 10px 2vw;
     }
-    .company-logo {
-        max-width: 90vw;
-        max-height: 80px;
+    img.company-logo {
+        display: block;
+        margin: 0 auto 32px auto;
+        width: 20rem;
+        border-radius: 16px;
+        box-shadow: 0 4px 24px rgba(0,63,140,0.15), 0 1.5px 8px rgba(0,63,140,0.10);
+        background: #fff;
+        border: 2px solid #e0e6f1;
+        padding: 12px;
+        object-fit: contain;
     }
     button, .export-link, input[type="submit"] {
         width: 100%;
