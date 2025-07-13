@@ -63,7 +63,9 @@
         if (code === 'indzone123') {
           const name = 'isAdmin_' + window.location.pathname.replace(/\W/g, '_');
           document.cookie = name + '=1; path=' + window.location.pathname + ';';
-          showToast('Admin mode enabled (reload to use Ctrl+1)');
+          window.blockInspect = false;
+          detachBlockers();
+          showToast('Inspect Block: OFF');
         } else {
           showToast('Incorrect admin code!');
         }
