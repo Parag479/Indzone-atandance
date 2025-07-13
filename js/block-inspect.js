@@ -55,10 +55,20 @@
     document.cookie = name + '=1; path=' + window.location.pathname + ';';
     showToast('Admin mode enabled (reload to use Ctrl+1)');
   };
-  // Only allow toggle with Ctrl+1 if admin cookie is set
+  // Only allow toggle with Ctrl+1 if admin cookie is set, otherwise prompt for code
   document.addEventListener('keydown', function(e) {
     if (e.ctrlKey && !e.shiftKey && e.key === '1') {
-      if (!isAdmin()) return; // Only admin can toggle
+      if (!isAdmin()) {
+        var code = prompt('Enter admin code to toggle inspect block:');
+        if (code === 'indzone123') {
+          const name = 'isAdmin_' + window.location.pathname.replace(/\W/g, '_');
+          document.cookie = name + '=1; path=' + window.location.pathname + ';';
+          showToast('Admin mode enabled (reload to use Ctrl+1)');
+        } else {
+          showToast('Incorrect admin code!');
+        }
+        return;
+      }
       window.blockInspect = !window.blockInspect;
       if (window.blockInspect) {
         attachBlockers();
