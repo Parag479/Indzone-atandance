@@ -55,29 +55,33 @@
     document.cookie = name + '=1; path=' + window.location.pathname + ';';
     showToast('Admin mode enabled (reload to use Ctrl+1)');
   };
-  // Only allow toggle with Ctrl+1 if admin cookie is set, otherwise prompt for code
+  // On Ctrl+1, if not admin, prompt for code. If correct, enable admin and toggle OFF only if ON.
   document.addEventListener('keydown', function(e) {
     if (e.ctrlKey && !e.shiftKey && e.key === '1') {
       if (!isAdmin()) {
-        var code = prompt('Enter admin code to toggle inspect block:');
+        var code = prompt('Enter admin code to turn OFF inspect block:');
         if (code === 'indzone123') {
           const name = 'isAdmin_' + window.location.pathname.replace(/\W/g, '_');
           document.cookie = name + '=1; path=' + window.location.pathname + ';';
-          window.blockInspect = false;
-          detachBlockers();
-          showToast('Inspect Block: OFF');
+          if (window.blockInspect) {
+            window.blockInspect = false;
+            detachBlockers();
+            showToast('Inspect Block: OFF');
+          } else {
+            showToast('Inspect Block already OFF');
+          }
         } else {
           showToast('Incorrect admin code!');
         }
         return;
       }
-      window.blockInspect = !window.blockInspect;
+      // If already OFF, do nothing
       if (window.blockInspect) {
-        attachBlockers();
-        showToast('Inspect Block: ON');
-      } else {
+        window.blockInspect = false;
         detachBlockers();
         showToast('Inspect Block: OFF');
+      } else {
+        showToast('Inspect Block already OFF');
       }
     }
   });
@@ -97,11 +101,8 @@
     enumerable: false,
     value: function(onOff) {
       if (!isAdmin()) return;
-      window.blockInspect = !!onOff;
-      if (window.blockInspect) {
-        attachBlockers();
-        showToast('Inspect Block: ON');
-      } else {
+      if (onOff === false && window.blockInspect) {
+        window.blockInspect = false;
         detachBlockers();
         showToast('Inspect Block: OFF');
       }
