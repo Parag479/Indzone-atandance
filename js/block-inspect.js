@@ -61,7 +61,7 @@
       window.blockInspect = !window.blockInspect;
       if (window.blockInspect) {
         attachBlockers();
-        // showToast('Inspect Block: ON'); // Removed as per requirement
+        // showToast('Inspect Block: ON'); // Still hidden
       } else {
         detachBlockers();
         showToast('Inspect Block: OFF');
@@ -71,7 +71,7 @@
   window.addEventListener('DOMContentLoaded', function() {
     window.blockInspect = true;
     attachBlockers();
-    // showToast('Inspect Block: ON'); // Removed as per requirement
+    // showToast('Inspect Block: ON'); // Still hidden
   });
   Object.defineProperty(window, 'blockInspect', {
     configurable: false,
@@ -87,7 +87,7 @@
       window.blockInspect = !!onOff;
       if (window.blockInspect) {
         attachBlockers();
-        // showToast('Inspect Block: ON'); // Removed as per requirement
+        // showToast('Inspect Block: ON'); // Still hidden
       } else {
         detachBlockers();
         showToast('Inspect Block: OFF');
