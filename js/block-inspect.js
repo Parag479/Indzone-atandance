@@ -2,6 +2,7 @@
 (function() {
   window.blockInspect = true;
   function showToast(msg) {
+    if (msg === 'Inspect Block: ON') return; // Never show ON message
     let toast = document.getElementById('inspectToast');
     if (!toast) {
       toast = document.createElement('div');
