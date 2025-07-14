@@ -36,9 +36,11 @@ function groupData(data) {
                 name: r.name,
                 date: date,
                 punchIn: '',
+                punchInRaw: '',
+                punchInLocation: '',
+                punchInLocationName: '',
                 punchOut: '',
-                location: '',
-                locationName: '',
+                punchOutRaw: '',
                 punchOutLocation: '',
                 punchOutLocationName: '',
                 hoursWorked: ''
@@ -47,8 +49,8 @@ function groupData(data) {
         if (r.action === 'Punch In') {
             grouped[key].punchIn = time;
             grouped[key].punchInRaw = r.time;
-            grouped[key].location = r.location;
-            grouped[key].locationName = r.locationName;
+            grouped[key].punchInLocation = r.location || '';
+            grouped[key].punchInLocationName = r.locationName || '';
         }
         if (r.action === 'Punch Out') {
             grouped[key].punchOut = time;
@@ -244,9 +246,13 @@ function renderTable(data) {
                         date: iso,
                         name: lv.employeeName || '',
                         punchIn: '',
+                        punchInRaw: '',
+                        punchInLocation: '',
+                        punchInLocationName: '',
                         punchOut: '',
-                        location: '',
-                        locationName: '',
+                        punchOutRaw: '',
+                        punchOutLocation: '',
+                        punchOutLocationName: '',
                         hoursWorked: '',
                         status: 'Leave',
                         isLeave: true,
@@ -270,9 +276,13 @@ function renderTable(data) {
                     date: iso,
                     name: '',
                     punchIn: '',
+                    punchInRaw: '',
+                    punchInLocation: '',
+                    punchInLocationName: '',
                     punchOut: '',
-                    location: '',
-                    locationName: '',
+                    punchOutRaw: '',
+                    punchOutLocation: '',
+                    punchOutLocationName: '',
                     hoursWorked: '',
                     status: 'Holiday',
                     isHoliday: true
@@ -301,10 +311,12 @@ function renderTable(data) {
                 $tbody.append(`<tr>
                     <td data-label="Date">${r.date}</td>
                     <td data-label="Employee Name">${nameCell}</td>
-                    <td data-label="Punch In Time"></td>
-                    <td data-label="Punch Out Time"></td>
-                    <td data-label="Location">${isSunday || r.isLeave ? '' : r.location}</td>
-                    <td data-label="Location Name">${isSunday || r.isLeave ? '' : r.locationName}</td>
+                    <td data-label="Punch In Time">${isSunday || r.isLeave ? '' : r.punchIn}</td>
+                    <td data-label="Punch In Location">${isSunday || r.isLeave ? '' : r.punchInLocation}</td>
+                    <td data-label="Punch In Location Name">${isSunday || r.isLeave ? '' : r.punchInLocationName}</td>
+                    <td data-label="Punch Out Time">${isSunday || r.isLeave ? '' : r.punchOut}</td>
+                    <td data-label="Punch Out Location">${isSunday || r.isLeave ? '' : r.punchOutLocation}</td>
+                    <td data-label="Punch Out Location Name">${isSunday || r.isLeave ? '' : r.punchOutLocationName}</td>
                     <td data-label="Hours Worked">${isSunday || r.isLeave ? '' : r.hoursWorked}</td>
                     <td data-label="Status">${status}</td>
                 </tr>`);
@@ -314,9 +326,11 @@ function renderTable(data) {
                 <td data-label="Date">${r.date}</td>
                 <td data-label="Employee Name">${employeeNameCell}</td>
                 <td data-label="Punch In Time">${isSunday || r.isLeave ? '' : r.punchIn}</td>
+                <td data-label="Punch In Location">${isSunday || r.isLeave ? '' : r.punchInLocation}</td>
+                <td data-label="Punch In Location Name">${isSunday || r.isLeave ? '' : r.punchInLocationName}</td>
                 <td data-label="Punch Out Time">${isSunday || r.isLeave ? '' : r.punchOut}</td>
-                <td data-label="Location">${isSunday || r.isLeave ? '' : r.location}</td>
-                <td data-label="Location Name">${isSunday || r.isLeave ? '' : r.locationName}</td>
+                <td data-label="Punch Out Location">${isSunday || r.isLeave ? '' : r.punchOutLocation}</td>
+                <td data-label="Punch Out Location Name">${isSunday || r.isLeave ? '' : r.punchOutLocationName}</td>
                 <td data-label="Hours Worked">${isSunday || r.isLeave ? '' : r.hoursWorked}</td>
                 <td data-label="Status">${status}</td>
             </tr>`);
