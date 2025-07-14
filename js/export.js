@@ -39,6 +39,8 @@ function groupData(data) {
                 punchOut: '',
                 location: '',
                 locationName: '',
+                punchOutLocation: '',
+                punchOutLocationName: '',
                 hoursWorked: ''
             };
         }
@@ -51,6 +53,8 @@ function groupData(data) {
         if (r.action === 'Punch Out') {
             grouped[key].punchOut = time;
             grouped[key].punchOutRaw = r.time;
+            grouped[key].punchOutLocation = r.location || '';
+            grouped[key].punchOutLocationName = r.locationName || '';
         }
     });
     // Calculate hours worked
