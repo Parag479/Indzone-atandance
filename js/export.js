@@ -302,6 +302,11 @@ function renderTable(data) {
         if (isAdmin && r.id) {
             employeeNameCell = `<span class="clickable-employee" data-employee-id="${r.id}" style="cursor:pointer;color:#003F8C;text-decoration:underline;">${r.name || ''}</span>`;
         }
+        // Compose location name with locality
+        const punchInLocality = isSunday || r.isLeave ? '' : extractLocality(r.punchInLocationName);
+        const punchOutLocality = isSunday || r.isLeave ? '' : extractLocality(r.punchOutLocationName);
+        const punchInLocationNameDisplay = (isSunday || r.isLeave) ? '' : (r.punchInLocationName ? `${r.punchInLocationName}${punchInLocality ? ' (' + punchInLocality + ')' : ''}` : '');
+        const punchOutLocationNameDisplay = (isSunday || r.isLeave) ? '' : (r.punchOutLocationName ? `${r.punchOutLocationName}${punchOutLocality ? ' (' + punchOutLocality + ')' : ''}` : '');
         if (r.isLeave && (!r.name || r.name.trim() === '') && r.employeeId) {
             fetchEmployeeName(r.employeeId, function(name) {
                 let nameCell = name || '';
@@ -313,10 +318,10 @@ function renderTable(data) {
                     <td data-label="Employee Name">${nameCell}</td>
                     <td data-label="Punch In Time">${isSunday || r.isLeave ? '' : r.punchIn}</td>
                     <td data-label="Punch In Location">${isSunday || r.isLeave ? '' : r.punchInLocation}</td>
-                    <td data-label="Punch In Location Name">${isSunday || r.isLeave ? '' : r.punchInLocationName}</td>
+                    <td data-label="Punch In Location Name">${punchInLocationNameDisplay}</td>
                     <td data-label="Punch Out Time">${isSunday || r.isLeave ? '' : r.punchOut}</td>
                     <td data-label="Punch Out Location">${isSunday || r.isLeave ? '' : r.punchOutLocation}</td>
-                    <td data-label="Punch Out Location Name">${isSunday || r.isLeave ? '' : r.punchOutLocationName}</td>
+                    <td data-label="Punch Out Location Name">${punchOutLocationNameDisplay}</td>
                     <td data-label="Hours Worked">${isSunday || r.isLeave ? '' : r.hoursWorked}</td>
                     <td data-label="Status">${status}</td>
                 </tr>`);
@@ -327,10 +332,10 @@ function renderTable(data) {
                 <td data-label="Employee Name">${employeeNameCell}</td>
                 <td data-label="Punch In Time">${isSunday || r.isLeave ? '' : r.punchIn}</td>
                 <td data-label="Punch In Location">${isSunday || r.isLeave ? '' : r.punchInLocation}</td>
-                <td data-label="Punch In Location Name">${isSunday || r.isLeave ? '' : r.punchInLocationName}</td>
+                <td data-label="Punch In Location Name">${punchInLocationNameDisplay}</td>
                 <td data-label="Punch Out Time">${isSunday || r.isLeave ? '' : r.punchOut}</td>
                 <td data-label="Punch Out Location">${isSunday || r.isLeave ? '' : r.punchOutLocation}</td>
-                <td data-label="Punch Out Location Name">${isSunday || r.isLeave ? '' : r.punchOutLocationName}</td>
+                <td data-label="Punch Out Location Name">${punchOutLocationNameDisplay}</td>
                 <td data-label="Hours Worked">${isSunday || r.isLeave ? '' : r.hoursWorked}</td>
                 <td data-label="Status">${status}</td>
             </tr>`);
@@ -419,6 +424,31 @@ function maskEmailPartial(email) {
     const [user, domain] = email.split('@');
     if (!user || !domain || user.length <= 4) return email;
     return user[0] + '*'.repeat(user.length - 4) + user.slice(-3) + '@' + domain;
+}
+
+// Helper to extract locality from locationName string
+function extractLocality(locationName) {
+    if (!locationName) return '';
+    const parts = locationName.split(',').map(s => s.trim());
+    // Try to find a part that looks like a locality (e.g., ends with 'West', 'East', or is a known area)
+    // Prefer the 2nd or 3rd from last, as OSM usually puts locality there
+    // Try to match suburb, town, village, city as a full word
+    // We'll just pick the 2nd or 3rd from last as best guess
+    if (parts.length >= 3) {
+        // Try to find a part that is not state/country
+        for (let i = parts.length - 3; i >= 0; i--) {
+            const p = parts[i];
+            // Skip if looks like state or country
+            if (/india|maharashtra|uttar pradesh|delhi|haryana|gujarat|bihar|west bengal|karnataka|tamil nadu|rajasthan|madhya pradesh|punjab|kerala|country|state/i.test(p)) continue;
+            // Prefer if ends with 'West', 'East', etc. or is a known locality pattern
+            if (/\b(west|east|north|south)\b/i.test(p) || p.split(' ').length <= 3) {
+                return p;
+            }
+        }
+        // Fallback: 3rd from end
+        return parts[parts.length - 3];
+    }
+    return parts[0] || '';
 }
 
 // --- Admin Approval Panel for Pending Punch Outs ---
