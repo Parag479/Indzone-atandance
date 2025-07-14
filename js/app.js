@@ -552,6 +552,25 @@ $(document).ready(function() {
     // Also clear timer on page unload
     window.addEventListener('beforeunload', clearPunchOutNotification);
 
+    // Floating notification function (shows until user cancels)
+    function showFloatingNotification(message) {
+        // Remove old notification if present
+        $('#floatingNotification').remove();
+        // Add new notification
+        $('body').append(`
+            <div id="floatingNotification" style="
+                position:fixed; bottom:30px; left:50%; transform:translateX(-50%);\n                background:#003F8C; color:#fff; padding:16px 32px; border-radius:8px;\n                box-shadow:0 2px 16px #0005; font-size:18px; z-index:99999; display:flex; align-items:center;">
+                <svg style="margin-right:10px;" width="24" height="24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                <span>${message}</span>
+                <button id="closeFloatingNotification" style="margin-left:20px; background:transparent; border:none; color:#fff; font-size:20px; cursor:pointer;">&times;</button>
+            </div>
+        `);
+        $('#closeFloatingNotification').click(function() {
+            $('#floatingNotification').fadeOut(200, function() { $(this).remove(); });
+        });
+        // No auto-hide, only close on cancel
+    }
+
     // --- Global Punch Out Notification for All Employees ---
     function checkAllEmployeesPunchout() {
         db.ref('attendance').once('value', (snapshot) => {
@@ -605,6 +624,11 @@ $(document).ready(function() {
                         }
                     });
                 }
+                // Always show floating notification
+                showFloatingNotification('Kuch employees ne abhi tak punch out nahi kiya hai: ' + lateEmployees.join(', '));
+            } else {
+                // Hide floating notification if no one is late
+                $('#floatingNotification').remove();
             }
         });
     }
