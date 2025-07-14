@@ -946,7 +946,7 @@ $(document).ready(function() {
             $('#editContactInfoSection').remove();
             // Show section if WhatsApp or Email is missing, or always allow update
             const html = `
-        <div id="editContactInfoSection" style="margin:30px 0;padding:18px 24px;background:#f8f9fa;border-radius:8px;max-width:400px;">
+        <div id="editContactInfoSection" style="margin: 0 auto;padding:18px 24px;background:#f8f9fa;border-radius:8px;max-width:400px;">
             <h3>Edit Contact Info</h3>
             <form id="editContactInfoForm">
                 <label>WhatsApp Number:</label>

@@ -14,9 +14,7 @@ header, .footer {
     text-align: center;
     letter-spacing: 1px;
 }
-div#editContactInfoSection {
-    margin: 0 auto;
-}
+
 
 h1, h2 {
     color: #003F8C;
