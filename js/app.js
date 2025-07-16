@@ -651,7 +651,7 @@ $(document).ready(function() {
                 // Web notification with click action and blink
                 if (Notification && Notification.permission === 'granted') {
                     const notification = new Notification('Punch Out Reminder', {
-                        body: 'Aapne abhi tak punch out nahi kiya hai. Kripya punch out karein.',
+                        body: 'You have not punched out yet. Please punch out.',
                         icon: 'ind_logo.png'
                     });
                     notification.onclick = function() {
@@ -662,7 +662,7 @@ $(document).ready(function() {
                     Notification.requestPermission().then(permission => {
                         if (permission === 'granted') {
                             const notification = new Notification('Punch Out Reminder', {
-                                body: 'Aapne abhi tak punch out nahi kiya hai. Kripya punch out karein.',
+                                body: 'You have not punched out yet. Please punch out.',
                                 icon: 'ind_logo.png'
                             });
                             notification.onclick = function() {
@@ -672,7 +672,7 @@ $(document).ready(function() {
                         }
                     });
                 }
-                showFloatingNotification('Aapne abhi tak punch out nahi kiya hai. Kripya punch out karein.');
+                showFloatingNotification('You have not punched out yet. Please punch out.');
             } else {
                 $('#floatingNotification').remove();
             }
