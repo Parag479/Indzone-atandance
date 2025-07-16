@@ -57,6 +57,8 @@ function groupData(data) {
             grouped[key].punchOutRaw = r.time;
             grouped[key].punchOutLocation = r.location || '';
             grouped[key].punchOutLocationName = r.locationName || '';
+            // Add reason if present (for old/accepted data)
+            if (r.reason) grouped[key].reason = r.reason;
         }
     });
     // Calculate hours worked
@@ -307,6 +309,8 @@ function renderTable(data) {
         const punchOutLocality = isSunday || r.isLeave ? '' : extractLocality(r.punchOutLocationName);
         const punchInLocationNameDisplay = (isSunday || r.isLeave) ? '' : (r.punchInLocationName ? `${r.punchInLocationName}${punchInLocality ? ' (' + punchInLocality + ')' : ''}` : '');
         const punchOutLocationNameDisplay = (isSunday || r.isLeave) ? '' : (r.punchOutLocationName ? `${r.punchOutLocationName}${punchOutLocality ? ' (' + punchOutLocality + ')' : ''}` : '');
+        // Show reason if present and this is a punch out row
+        const reasonCell = r.reason ? r.reason : '';
         if (r.isLeave && (!r.name || r.name.trim() === '') && r.employeeId) {
             fetchEmployeeName(r.employeeId, function(name) {
                 let nameCell = name || '';
@@ -324,6 +328,7 @@ function renderTable(data) {
                     <td data-label="Punch Out Location Name">${punchOutLocationNameDisplay}</td>
                     <td data-label="Hours Worked">${isSunday || r.isLeave ? '' : r.hoursWorked}</td>
                     <td data-label="Status">${status}</td>
+                    <td data-label="Reason"></td>
                 </tr>`);
             });
         } else {
@@ -338,6 +343,7 @@ function renderTable(data) {
                 <td data-label="Punch Out Location Name">${punchOutLocationNameDisplay}</td>
                 <td data-label="Hours Worked">${isSunday || r.isLeave ? '' : r.hoursWorked}</td>
                 <td data-label="Status">${status}</td>
+                <td data-label="Reason">${reasonCell}</td>
             </tr>`);
         }
     });
