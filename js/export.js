@@ -563,7 +563,64 @@ if (!document.getElementById('styledPunchoutTableCSS')) {
     document.head.appendChild(style);
 }
 
+// Floating notification utility
+function showFloatingNotification(message) {
+    if ($('#floatingNotification').length) $('#floatingNotification').remove();
+    $('body').append(`<div id="floatingNotification" style="position:fixed; bottom:30px; left:50%; transform:translateX(-50%); background:#003F8C; color:#fff; padding:16px 32px; border-radius:8px; box-shadow:0 2px 16px #0005; font-size:18px; z-index:99999; display:flex; align-items:center;"><span>${message}</span><button id="closeFloatingNotification" style="margin-left:20px; background:transparent; border:none; color:#fff; font-size:20px; cursor:pointer;">&times;</button></div>`);
+    $('#closeFloatingNotification').click(function() { $('#floatingNotification').fadeOut(200, function() { $(this).remove(); }); });
+}
+
+// --- Admin Panel: List all employees with 8+ hours punch-in and no punch-out ---
+function renderOverduePunchOuts() {
+    if (!isAdmin) return;
+    db.ref('attendance').once('value').then(snapshot => {
+        const data = snapshot.val() || {};
+        const records = Object.values(data);
+        const now = new Date();
+        const pending = {};
+        records.forEach(r => {
+            if (!pending[r.id]) pending[r.id] = {name: r.name, lastPunchIn: null, lastPunchOut: null};
+            if (r.action === 'Punch In') pending[r.id].lastPunchIn = r;
+            if (r.action === 'Punch Out') pending[r.id].lastPunchOut = r;
+        });
+        const late = [];
+        Object.keys(pending).forEach(id => {
+            const p = pending[id];
+            if (p.lastPunchIn && (!p.lastPunchOut || new Date(p.lastPunchIn.time) > new Date(p.lastPunchOut.time))) {
+                const inTime = new Date(p.lastPunchIn.time);
+                const hours = (now - inTime) / (1000 * 60 * 60);
+                if (hours >= 8) {
+                    late.push({id, name: p.name, since: inTime.toLocaleString()});
+                }
+            }
+        });
+        let html = '<h3>Employees Not Punched Out (8+ hours)</h3>';
+        if (late.length === 0) {
+            html += '<div style="color:green;">No overdue punch outs!</div>';
+        } else {
+            html += '<table border="1" style="width:100%;margin-bottom:20px;"><tr><th>Employee ID</th><th>Name</th><th>Punch In Time</th><th>Send Reminder</th></tr>';
+            late.forEach(emp => {
+                html += `<tr>
+                    <td>${emp.id}</td>
+                    <td>${emp.name}</td>
+                    <td>${emp.since}</td>
+                    <td><button class="send-reminder-btn" data-empid="${emp.id}" data-name="${emp.name}">Send Reminder</button></td>
+                </tr>`;
+            });
+            html += '</table>';
+        }
+        if ($('#overduePunchOutPanel').length === 0) {
+            $('<div id="overduePunchOutPanel" style="margin:30px 0;"></div>').insertBefore('#pendingPunchOutPanel');
+        }
+        $('#overduePunchOutPanel').html(html);
+    });
+}
+
 $(document).ready(function() {
+    // Always request notification permission on page load if not already granted or denied
+    if (window.Notification && Notification.permission !== "granted" && Notification.permission !== "denied") {
+        Notification.requestPermission();
+    }
     // Prompt for Employee ID at page load
     currentEmployeeId = prompt('Enter your Employee ID to view your attendance:');
     if (!currentEmployeeId) {
@@ -866,7 +923,7 @@ $(document).ready(function() {
     }
     
     // Update Punch Out to send notifications
-    $('#punchOutBtn').click(function() {
+    $('#punchOutBtn').off('click').on('click', function() {
         const employeeId = $('#employeeId').val();
         const employeeName = $('#employeeName').val();
         const timestamp = new Date();
@@ -890,6 +947,8 @@ $(document).ready(function() {
                     locationName: locationName
                 }).then(() => {
                     alert('Punched Out Successfully!');
+                    // After OK, redirect to index.html
+                    window.location.href = 'index.html';
                     $('#employeeId').val('');
                     $('#employeeName').val('');
                     setPunchButtons(true);
@@ -1116,7 +1175,7 @@ $(document).ready(function() {
     }
 
     // Approve/Reject handlers
-    $(document).on('click', '.approve-btn', function() {
+    $(document).off('click', '.approve-btn').on('click', '.approve-btn', function() {
         const key = $(this).data('key');
         firebase.database().ref('pending_punchout/' + key).once('value').then(function(snapshot) {
             const req = snapshot.val();
@@ -1136,13 +1195,100 @@ $(document).ready(function() {
                 // Remove pending request
                 firebase.database().ref('pending_punchout/' + key).remove();
                 alert('Punch Out approved and recorded.');
+                if (window.Notification && Notification.permission === 'granted') {
+                    new Notification('Punch Out Approved', {
+                        body: `Punch out approved for ${req.name} (${req.id})`,
+                        icon: 'ind_logo.png'
+                    });
+                }
+                showFloatingNotification(`Punch out approved for ${req.name} (${req.id})`);
             });
         });
     });
-    $(document).on('click', '.reject-btn', function() {
+    $(document).off('click', '.reject-btn').on('click', '.reject-btn', function() {
         const key = $(this).data('key');
         firebase.database().ref('pending_punchout/' + key).remove().then(function() {
             alert('Punch Out request rejected.');
+            if (window.Notification && Notification.permission === 'granted') {
+                new Notification('Punch Out Rejected', {
+                    body: `Punch out rejected for request ${key}`,
+                    icon: 'ind_logo.png'
+                });
+            }
+            showFloatingNotification(`Punch out request rejected (${key})`);
+        });
+    });
+
+    // On page load (admin)
+    if (isAdmin) {
+        renderOverduePunchOuts();
+        setInterval(renderOverduePunchOuts, 5 * 60 * 1000); // Auto-refresh every 5 min
+        // Robust event handler for Send Reminder
+        $(document).off('click', '.send-reminder-btn').on('click', '.send-reminder-btn', function() {
+            const empId = $(this).data('empid');
+            const name = $(this).data('name');
+            // Browser notification for admin
+            if (window.Notification && Notification.permission === 'granted') {
+                new Notification('Reminder Sent', {
+                    body: `Reminder sent to ${name} (ID: ${empId}) to punch out!`,
+                    icon: 'ind_logo.png'
+                });
+            } else if (window.Notification && Notification.permission !== 'denied') {
+                Notification.requestPermission();
+            }
+            showFloatingNotification(`Reminder sent to ${name} (ID: ${empId}) to punch out!`);
+            // WhatsApp/email logic
+            db.ref('employees/' + empId).once('value').then(snapshot => {
+                const emp = snapshot.val();
+                if (emp) {
+                    // WhatsApp
+                    if (emp.whatsapp) {
+                        const msg = `Hi ${name}, please punch out. Your 8 hours are complete.`;
+                        const waUrl = `https://wa.me/${emp.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`;
+                        window.open(waUrl, '_blank');
+                    }
+                    // Email (if using EmailJS)
+                    if (emp.email && typeof emailjs !== 'undefined') {
+                        emailjs.send('service_nlk542o', 'template_fyvulbh', {
+                            to_email: emp.email,
+                            to_name: name,
+                            message: `Hi ${name}, please punch out. Your 8 hours are complete.`
+                        });
+                    }
+                }
+            });
+        });
+    }
+
+    // Add Export Pending Punch Out Requests button if not present (admin only)
+    if (isAdmin && $('#exportPendingPunchOutBtn').length === 0) {
+        $('<button id="exportPendingPunchOutBtn" class="admin-only" style="margin:10px 0 20px 0;">Export Pending Early Punch Out Requests</button>')
+            .insertBefore($('#pendingPunchOutPanel'));
+    }
+    // Export Pending Punch Out Requests logic
+    $('#exportPendingPunchOutBtn').off('click').on('click', function() {
+        firebase.database().ref('pending_punchout').once('value').then(function(snapshot) {
+            const data = snapshot.val() || {};
+            const rows = [
+                ['Employee ID', 'Name', 'Reason', 'Time', 'Status']
+            ];
+            Object.values(data).forEach(req => {
+                rows.push([
+                    req.id || '',
+                    req.name || '',
+                    req.reason || '',
+                    req.time ? new Date(req.time).toLocaleString() : '',
+                    'Pending'
+                ]);
+            });
+            if (rows.length === 1) {
+                alert('No pending punch out requests to export!');
+                return;
+            }
+            const worksheet = XLSX.utils.aoa_to_sheet(rows);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Pending Punch Out');
+            XLSX.writeFile(workbook, 'pending_punchout_requests.xlsx');
         });
     });
 });

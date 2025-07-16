@@ -126,8 +126,14 @@ const db = firebase.database();
   });
 })();
 
+// Helper to get empid from URL
+function getEmployeeIdFromURL() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('empid');
+}
+
 $(document).ready(function() {
-    // Request notification permission on page load if not already granted or denied
+    // Always request notification permission on page load if not already granted or denied
     if (window.Notification && Notification.permission !== "granted" && Notification.permission !== "denied") {
         Notification.requestPermission();
     }
@@ -154,6 +160,23 @@ $(document).ready(function() {
     $('#employeeId').change(function() {
         const selected = employees.find(e => e.id === $(this).val());
         $('#employeeName').val(selected ? selected.name : '');
+    });
+
+    // When employee is selected from dropdown, update URL, disable dropdown, and re-run notification logic
+    $('#employeeId').on('change', function() {
+        var empId = $(this).val();
+        if (empId) {
+            // Update URL with empid
+            const url = new URL(window.location);
+            url.searchParams.set('empid', empId);
+            window.history.replaceState({}, '', url);
+            // Disable dropdown
+            $('#employeeId').prop('disabled', true);
+            // Re-run punchout notification logic for this employee
+            if (typeof checkAllEmployeesPunchout === 'function') {
+                checkAllEmployeesPunchout();
+            }
+        }
     });
 
     // Fetch location and call callback with (location, locationName)
@@ -265,6 +288,7 @@ $(document).ready(function() {
         }
         $('#punchOutWarning').remove();
     }
+
     // --- VPN/Proxy Detection Logic ---
     function checkLocationWithIP(geoLat, geoLon, callback) {
         $.get('https://ipapi.co/json/', function(data) {
@@ -301,7 +325,7 @@ $(document).ready(function() {
         try { return decodeURIComponent(escape(atob(str))); } catch (e) { return str; }
     }
 
-    $('#punchInBtn').click(function() {
+    $('#punchInBtn').off('click').on('click', function() {
         const employeeId = $('#employeeId').val();
         const employeeName = $('#employeeName').val();
         const timestamp = new Date();
@@ -337,6 +361,8 @@ $(document).ready(function() {
                             locationName: locationName
                         }).then(() => {
                             alert('Punched In Successfully!');
+                            // After OK, redirect to index.html
+                            window.location.href = 'index.html';
                             $('#employeeId').val('');
                             $('#employeeName').val('');
                             setPunchButtons(true);
@@ -442,6 +468,8 @@ $(document).ready(function() {
                         locationName: locationName
                     }).then(() => {
                         alert('Punched Out Successfully!');
+                        // After OK, redirect to index.html
+                        window.location.href = 'index.html';
                         $('#employeeId').val('');
                         $('#employeeName').val('');
                         setPunchButtons(true);
@@ -548,7 +576,20 @@ $(document).ready(function() {
     });
 
     // Initial fetch
-    fetchEmployees();
+    const empidFromURL = getEmployeeIdFromURL();
+    if (empidFromURL) {
+        fetchEmployees(function(employees) {
+            const found = employees.find(e => e.id == empidFromURL);
+            if (found) {
+                $('#employeeId').val(found.id).trigger('change');
+                $('#employeeId').prop('disabled', true);
+            } else {
+                alert('Employee ID not found: ' + empidFromURL);
+            }
+        });
+    } else {
+        fetchEmployees();
+    }
     // Also clear timer on page unload
     window.addEventListener('beforeunload', clearPunchOutNotification);
 
@@ -571,63 +612,68 @@ $(document).ready(function() {
         // No auto-hide, only close on cancel
     }
 
-    // --- Global Punch Out Notification for All Employees ---
+    // --- Global Punch Out Notification for Current Employee Only ---
     function checkAllEmployeesPunchout() {
+        // Get current employee ID from URL or dropdown
+        var currentEmployeeId = null;
+        if (window.location.search.includes('empid=')) {
+            const params = new URLSearchParams(window.location.search);
+            currentEmployeeId = params.get('empid');
+        } else {
+            currentEmployeeId = $('#employeeId').val();
+        }
+        if (!currentEmployeeId) {
+            document.getElementById('bell-badge').style.display = 'none';
+            $('#floatingNotification').remove();
+            return;
+        }
         db.ref('attendance').once('value', (snapshot) => {
             const data = snapshot.val() || {};
             const records = Object.values(data);
             const now = new Date();
             let showNotification = false;
-            let lateEmployees = [];
-            // Group by employee id
-            const grouped = {};
-            records.forEach(r => {
-                if (!grouped[r.id]) grouped[r.id] = [];
-                grouped[r.id].push(r);
-            });
-            Object.keys(grouped).forEach(empId => {
-                const empRecords = grouped[empId].sort((a, b) => new Date(a.time) - new Date(b.time));
-                // Find last punch in and punch out
-                let lastPunchIn = null;
-                let lastPunchOut = null;
-                for (let i = empRecords.length - 1; i >= 0; i--) {
-                    if (!lastPunchIn && empRecords[i].action === 'Punch In') lastPunchIn = empRecords[i];
-                    if (!lastPunchOut && empRecords[i].action === 'Punch Out') lastPunchOut = empRecords[i];
-                    if (lastPunchIn && lastPunchOut) break;
+            let lastPunchIn = null, lastPunchOut = null;
+            const empRecords = records.filter(r => r.id == currentEmployeeId).sort((a, b) => new Date(a.time) - new Date(b.time));
+            for (let i = empRecords.length - 1; i >= 0; i--) {
+                if (!lastPunchIn && empRecords[i].action === 'Punch In') lastPunchIn = empRecords[i];
+                if (!lastPunchOut && empRecords[i].action === 'Punch Out') lastPunchOut = empRecords[i];
+                if (lastPunchIn && lastPunchOut) break;
+            }
+            if (lastPunchIn && (!lastPunchOut || new Date(lastPunchIn.time) > new Date(lastPunchOut.time))) {
+                const inTime = new Date(lastPunchIn.time);
+                const hours = (now - inTime) / (1000 * 60 * 60);
+                if (hours >= 8) {
+                    showNotification = true;
                 }
-                if (lastPunchIn && (!lastPunchOut || new Date(lastPunchIn.time) > new Date(lastPunchOut.time))) {
-                    // Not punched out after last punch in
-                    const inTime = new Date(lastPunchIn.time);
-                    const hours = (now - inTime) / (1000 * 60 * 60);
-                    if (hours >= 8) {
-                        showNotification = true;
-                        lateEmployees.push(empRecords[0].name || empId);
-                    }
-                }
-            });
-            // Show/hide bell badge
+            }
             document.getElementById('bell-badge').style.display = showNotification ? 'block' : 'none';
-            // Optional: Browser notification
             if (showNotification) {
+                // Web notification with click action and blink
                 if (Notification && Notification.permission === 'granted') {
-                    new Notification('Punch Out Reminder', {
-                        body: 'Kuch employees ne abhi tak punch out nahi kiya hai: ' + lateEmployees.join(', '),
+                    const notification = new Notification('Punch Out Reminder', {
+                        body: 'Aapne abhi tak punch out nahi kiya hai. Kripya punch out karein.',
                         icon: 'ind_logo.png'
                     });
+                    notification.onclick = function() {
+                        window.focus();
+                        blinkPunchOutButton();
+                    };
                 } else if (Notification && Notification.permission !== 'denied') {
                     Notification.requestPermission().then(permission => {
                         if (permission === 'granted') {
-                            new Notification('Punch Out Reminder', {
-                                body: 'Kuch employees ne abhi tak punch out nahi kiya hai: ' + lateEmployees.join(', '),
+                            const notification = new Notification('Punch Out Reminder', {
+                                body: 'Aapne abhi tak punch out nahi kiya hai. Kripya punch out karein.',
                                 icon: 'ind_logo.png'
                             });
+                            notification.onclick = function() {
+                                window.focus();
+                                blinkPunchOutButton();
+                            };
                         }
                     });
                 }
-                // Always show floating notification
-                showFloatingNotification('Kuch employees ne abhi tak punch out nahi kiya hai: ' + lateEmployees.join(', '));
+                showFloatingNotification('Aapne abhi tak punch out nahi kiya hai. Kripya punch out karein.');
             } else {
-                // Hide floating notification if no one is late
                 $('#floatingNotification').remove();
             }
         });
@@ -637,3 +683,46 @@ $(document).ready(function() {
     // Har 5 minute me auto-refresh
     setInterval(checkAllEmployeesPunchout, 5 * 60 * 1000);
 });
+
+// Employee name click: auto-select in dropdown, update URL, and re-run notification logic
+$(document).on('click', '.clickable-employee', function() {
+    var empId = $(this).data('employee-id');
+    // Set dropdown value and trigger change
+    $('#employeeId').val(empId).trigger('change');
+    // Disable dropdown
+    $('#employeeId').prop('disabled', true);
+    // Update URL with empid
+    const url = new URL(window.location);
+    url.searchParams.set('empid', empId);
+    window.history.replaceState({}, '', url);
+    // Re-run punchout notification logic for this employee
+    if (typeof checkAllEmployeesPunchout === 'function') {
+        checkAllEmployeesPunchout();
+    }
+});
+
+// Blink effect for punch out button
+function blinkPunchOutButton() {
+    const btn = document.getElementById('punchOutBtn');
+    if (!btn) return;
+    btn.classList.add('blink-punchout');
+    setTimeout(() => {
+        btn.classList.remove('blink-punchout');
+    }, 3000); // Blink for 3 seconds
+}
+
+// Add blink CSS if not present
+if (!document.getElementById('blink-punchout-style')) {
+    const style = document.createElement('style');
+    style.id = 'blink-punchout-style';
+    style.innerHTML = `
+    .blink-punchout {
+        animation: blink-punchout-anim 0.5s linear 0s 6 alternate;
+    }
+    @keyframes blink-punchout-anim {
+        0% { background: #003F8C; color: #fff; }
+        100% { background: #fff200; color: #003F8C; }
+    }
+    `;
+    document.head.appendChild(style);
+}
