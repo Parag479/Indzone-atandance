@@ -416,6 +416,7 @@ $(document).ready(function() {
                     const userRecords = records.filter(r => r.id === employeeId);
                     const lastPunchIn = userRecords.filter(r => r.action === 'Punch In').sort((a, b) => new Date(b.time) - new Date(a.time))[0];
                     let punchOutEarly = false;
+                    let lessThanFourHours = false;
                     if (lastPunchIn) {
                         const inTime = new Date(lastPunchIn.time);
                         const now = new Date();
@@ -424,6 +425,38 @@ $(document).ready(function() {
                         if (hours < 8) {
                             punchOutEarly = true;
                         }
+                        if (hours < 4) {
+                            lessThanFourHours = true;
+                        }
+                    }
+                    if (lessThanFourHours) {
+                        // Mark leave in employee table
+                        const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+                        db.ref('employees/' + employeeId + '/leaves/' + today).set({
+                            date: today,
+                            reason: 'Less than 4 hours present (auto-leave)',
+                            type: 'Auto'
+                        }).then(() => {
+                            alert('Less than 4 hours present. Leave marked for today.');
+                            // Proceed with punch out as usual
+                            addAttendance({
+                                id: employeeId,
+                                name: employeeName,
+                                action: 'Punch Out',
+                                time: timestamp.toISOString(),
+                                location: location,
+                                locationName: locationName
+                            }).then(() => {
+                                alert('Punched Out Successfully!');
+                                window.location.href = 'index.html';
+                                $('#employeeId').val('');
+                                $('#employeeName').val('');
+                                setPunchButtons(true);
+                                clearStatus();
+                                clearPunchOutNotification();
+                            });
+                        });
+                        return;
                     }
                     if (punchOutEarly) {
                         // Show modal for reason
@@ -458,7 +491,7 @@ $(document).ready(function() {
                         });
                         return;
                     }
-                    // Normal Punch Out (8+ hours)
+                    // Normal Punch Out (8+ hours or 4-8 hours with reason)
                     addAttendance({
                         id: employeeId,
                         name: employeeName,
@@ -468,13 +501,11 @@ $(document).ready(function() {
                         locationName: locationName
                     }).then(() => {
                         alert('Punched Out Successfully!');
-                        // After OK, redirect to index.html
                         window.location.href = 'index.html';
                         $('#employeeId').val('');
                         $('#employeeName').val('');
                         setPunchButtons(true);
                         clearStatus();
-                        // Clear Punch Out notification timer
                         clearPunchOutNotification();
                     });
                 });
