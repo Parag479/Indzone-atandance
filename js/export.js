@@ -162,7 +162,9 @@ function renderLeaveTable(leaves, isAdmin) {
             const employees = Object.values(data);
             let html = `<div id='adminContactTable' style='margin-top:30px;'><h2>Employee Contact Info</h2><div class='table-responsive'><table class='table'><thead><tr><th>Employee ID</th><th>Name</th><th>WhatsApp</th><th>Email</th></tr></thead><tbody>`;
             employees.forEach(emp => {
-                html += `<tr><td>${emp.id}</td><td>${emp.name || ''}</td><td>${decrypt(emp.whatsapp || '')}</td><td>${decrypt(emp.email || '')}</td></tr>`;
+                const whatsappVal = emp.whatsapp ? (isEncrypted(emp.whatsapp) ? decrypt(emp.whatsapp) : emp.whatsapp) : '';
+                const emailVal = emp.email ? (isEncrypted(emp.email) ? decrypt(emp.email) : emp.email) : '';
+                html += `<tr><td>${emp.id}</td><td>${emp.name || ''}</td><td>${whatsappVal}</td><td>${emailVal}</td></tr>`;
             });
             html += '</tbody></table></div></div>';
             if ($('#adminContactTable').length) $('#adminContactTable').remove();
@@ -1023,9 +1025,7 @@ $(document).ready(function() {
             if (!empId) return;
             let whatsapp = $('#editWhatsapp').val().trim();
             let email = $('#editEmail').val().trim();
-            // Encrypt only if not already encrypted
-            if (!isEncrypted(whatsapp)) whatsapp = encrypt(whatsapp);
-            if (!isEncrypted(email)) email = encrypt(email);
+            // Save as plain text (unencrypted)
             db.ref('employees/' + empId).update({ whatsapp, email }).then(() => {
                 $('#profileUpdateSuccess').show();
                 setTimeout(() => $('#profileUpdateSuccess').fadeOut(500), 2000);
@@ -1038,10 +1038,10 @@ $(document).ready(function() {
             db.ref('employees/' + empId).once('value').then(snapshot => {
                 const emp = snapshot.val();
                 if (emp) {
-                    $('#editWhatsapp').val(decrypt(emp.whatsapp || ''));
-                    $('#editEmail').val(decrypt(emp.email || ''));
+                    $('#editWhatsapp').val(emp.whatsapp ? (isEncrypted(emp.whatsapp) ? decrypt(emp.whatsapp) : emp.whatsapp) : '');
+                    $('#editEmail').val(emp.email ? (isEncrypted(emp.email) ? decrypt(emp.email) : emp.email) : '');
                     $('#editProfileSection').show();
-                    if ((decrypt(emp.whatsapp) && decrypt(emp.whatsapp).trim() !== '') && (decrypt(emp.email) && decrypt(emp.email).trim() !== '')) {
+                    if (((emp.whatsapp ? (isEncrypted(emp.whatsapp) ? decrypt(emp.whatsapp) : emp.whatsapp) : '').trim() !== '') && ((emp.email ? (isEncrypted(emp.email) ? decrypt(emp.email) : emp.email) : '').trim() !== '')) {
                         $('#profileUpdateSuccess').show();
                     } else {
                         $('#profileUpdateSuccess').hide();
@@ -1075,16 +1075,16 @@ $(document).ready(function() {
         </div>`;
             $('#leaveSection').before(html);
             // Show encrypted by default
-            $('#editContactWhatsapp').val(emp && emp.whatsapp ? maskPhoneLast3(decrypt(emp.whatsapp)) : '').attr('placeholder', 'e.g. +91 98765 43210');
-            $('#editContactEmail').val(emp && emp.email ? maskEmailPartial(decrypt(emp.email)) : '').attr('placeholder', 'e.g. rahul@company.com');
+            $('#editContactWhatsapp').val(emp && emp.whatsapp ? maskPhoneLast3(isEncrypted(emp.whatsapp) ? decrypt(emp.whatsapp) : emp.whatsapp) : '').attr('placeholder', 'e.g. +91 98765 43210');
+            $('#editContactEmail').val(emp && emp.email ? maskEmailPartial(isEncrypted(emp.email) ? decrypt(emp.email) : emp.email) : '').attr('placeholder', 'e.g. rahul@company.com');
             // Show button logic
             $(document).off('click', '#showWhatsappBtn').on('click', '#showWhatsappBtn', function() {
-                $('#editContactWhatsapp').val(emp && emp.whatsapp ? decrypt(emp.whatsapp) : '').prop('readonly', false).attr('placeholder', 'e.g. +91 98765 43210');
+                $('#editContactWhatsapp').val(emp && emp.whatsapp ? (isEncrypted(emp.whatsapp) ? decrypt(emp.whatsapp) : emp.whatsapp) : '').prop('readonly', false).attr('placeholder', 'e.g. +91 98765 43210');
                 $(this).remove();
                 checkContactFields();
             });
             $(document).off('click', '#showEmailBtn').on('click', '#showEmailBtn', function() {
-                $('#editContactEmail').val(emp && emp.email ? decrypt(emp.email) : '').prop('readonly', false).attr('placeholder', 'e.g. rahul@company.com');
+                $('#editContactEmail').val(emp && emp.email ? (isEncrypted(emp.email) ? decrypt(emp.email) : emp.email) : '').prop('readonly', false).attr('placeholder', 'e.g. rahul@company.com');
                 $(this).remove();
                 checkContactFields();
             });
@@ -1104,15 +1104,16 @@ $(document).ready(function() {
                 e.preventDefault();
                 const whatsapp = $('#editContactWhatsapp').val().trim();
                 const email = $('#editContactEmail').val().trim();
+                // Save as plain text (unencrypted)
                 db.ref('employees/' + currentEmployeeId).update({
-                    whatsapp: encrypt(whatsapp),
-                    email: encrypt(email)
+                    whatsapp,
+                    email
                 }).then(() => {
                     $('#editContactSuccess').show();
                     setTimeout(() => $('#editContactSuccess').fadeOut(500), 2000);
-                    // After update, revert to encrypted view and static green check if both present
-                    $('#editContactWhatsapp').val(whatsapp ? encrypt(whatsapp) : '').prop('readonly', true).attr('placeholder', 'e.g. +91 98765 43210');
-                    $('#editContactEmail').val(email ? encrypt(email) : '').prop('readonly', true).attr('placeholder', 'e.g. rahul@company.com');
+                    // After update, revert to static green check if both present
+                    $('#editContactWhatsapp').val(whatsapp ? whatsapp : '').prop('readonly', true).attr('placeholder', 'e.g. +91 98765 43210');
+                    $('#editContactEmail').val(email ? email : '').prop('readonly', true).attr('placeholder', 'e.g. rahul@company.com');
                     if (whatsapp && email) {
                         $('#contactCheckIcon').show();
                     } else {
