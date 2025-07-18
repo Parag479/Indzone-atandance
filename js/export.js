@@ -59,6 +59,11 @@ function groupData(data) {
             grouped[key].punchOutLocationName = r.locationName || '';
             // Add reason if present (for old/accepted data)
             if (r.reason) grouped[key].reason = r.reason;
+            // If reason is auto-leave for less than 4 hours, mark as leave
+            if (r.reason && r.reason.toLowerCase().includes('less than 4 hours')) {
+                grouped[key].isLeave = true;
+                grouped[key].status = 'Leave';
+            }
         }
     });
     // Calculate hours worked
@@ -70,6 +75,11 @@ function groupData(data) {
             if (diffMs > 0) {
                 const hours = diffMs / (1000 * 60 * 60);
                 r.hoursWorked = hours.toFixed(2);
+                // If less than 4 hours, mark as leave (for old data without reason)
+                if (hours < 4) {
+                    r.isLeave = true;
+                    r.status = 'Leave';
+                }
             } else {
                 r.hoursWorked = '';
             }
