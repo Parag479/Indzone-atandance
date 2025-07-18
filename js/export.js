@@ -616,13 +616,14 @@ function renderOverduePunchOuts() {
         if (late.length === 0) {
             html += '<div style="color:green;">No overdue punch outs!</div>';
         } else {
-            html += '<table border="1" style="width:100%;margin-bottom:20px;"><tr><th>Employee ID</th><th>Name</th><th>Punch In Time</th><th>Send Reminder</th></tr>';
+            html += '<table border="1" style="width:100%;margin-bottom:20px;"><tr><th>Employee ID</th><th>Name</th><th>Punch In Time</th><th>Send Reminder</th><th>Email Reminder</th></tr>';
             late.forEach(emp => {
                 html += `<tr>
                     <td>${emp.id}</td>
                     <td>${emp.name}</td>
                     <td>${emp.since}</td>
                     <td><button class="send-reminder-btn" data-empid="${emp.id}" data-name="${emp.name}">Send Reminder</button></td>
+                    <td><button class="send-email-reminder-btn" data-empid="${emp.id}" data-name="${emp.name}">Send Email Reminder</button></td>
                 </tr>`;
             });
             html += '</table>';
@@ -631,6 +632,11 @@ function renderOverduePunchOuts() {
             $('<div id="overduePunchOutPanel" style="margin:30px 0;"></div>').insertBefore('#pendingPunchOutPanel');
         }
         $('#overduePunchOutPanel').html(html);
+
+        // --- Automatic Email Reminders ---
+        late.forEach(emp => {
+            sendEmailReminderIfNotSent(emp.id, emp.name);
+        });
     });
 }
 
@@ -1307,5 +1313,49 @@ $(document).ready(function() {
             XLSX.utils.book_append_sheet(workbook, worksheet, 'Pending Punch Out');
             XLSX.writeFile(workbook, 'pending_punchout_requests.xlsx');
         });
+    });
+
+    // --- Email Reminder Utility Functions ---
+    function sendEmailReminderIfNotSent(empId, empName) {
+        // Use localStorage to avoid spamming: key = 'emailReminderSent_{empId}_{YYYYMMDD}'
+        const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const key = `emailReminderSent_${empId}_${today}`;
+        if (localStorage.getItem(key)) return; // Already sent today
+        sendEmailReminder(empId, empName, function(success) {
+            if (success) localStorage.setItem(key, '1');
+        });
+    }
+    function sendEmailReminder(empId, empName, cb) {
+        db.ref('employees/' + empId).once('value').then(snapshot => {
+            const emp = snapshot.val();
+            if (emp && emp.email) {
+                const templateParams = {
+                    to_email: emp.email,
+                    to_name: empName,
+                    message: `Hi ${empName}, please punch out. Your 8 hours are complete.`
+                };
+                if (typeof emailjs !== 'undefined') {
+                    emailjs.send('service_nlk542o', 'template_fyvulbh', templateParams)
+                        .then(function(response) {
+                            showFloatingNotification(`Email reminder sent to ${empName} (${emp.email})`);
+                            if (cb) cb(true);
+                        }, function(error) {
+                            showFloatingNotification(`Failed to send email to ${empName}`);
+                            if (cb) cb(false);
+                        });
+                } else {
+                    if (cb) cb(false);
+                }
+            } else {
+                if (cb) cb(false);
+            }
+        });
+    }
+
+    // Add handler for manual email reminder button (admin only)
+    $(document).off('click', '.send-email-reminder-btn').on('click', '.send-email-reminder-btn', function() {
+        const empId = $(this).data('empid');
+        const name = $(this).data('name');
+        sendEmailReminder(empId, name);
     });
 });
