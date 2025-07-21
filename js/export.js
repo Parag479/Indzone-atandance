@@ -616,7 +616,7 @@ function renderOverduePunchOuts() {
         if (late.length === 0) {
             html += '<div style="color:green;">No overdue punch outs!</div>';
         } else {
-            html += '<table border="1" style="width:100%;margin-bottom:20px;"><tr><th>Employee ID</th><th>Name</th><th>Punch In Time</th><th>Send Reminder</th><th>Email Reminder</th></tr>';
+            html += '<div class="tablet-frame"><div class="scrollable-table"><table border="1" style="width:100%;margin-bottom:20px;"><tr><th>Employee ID</th><th>Name</th><th>Punch In Time</th><th>Send Reminder</th><th>Email Reminder</th></tr>';
             late.forEach(emp => {
                 html += `<tr>
                     <td>${emp.id}</td>
@@ -626,12 +626,55 @@ function renderOverduePunchOuts() {
                     <td><button class="send-email-reminder-btn" data-empid="${emp.id}" data-name="${emp.name}">Send Email Reminder</button></td>
                 </tr>`;
             });
-            html += '</table>';
+            html += '</table></div></div>';
         }
         if ($('#overduePunchOutPanel').length === 0) {
             $('<div id="overduePunchOutPanel" style="margin:30px 0;"></div>').insertBefore('#pendingPunchOutPanel');
         }
         $('#overduePunchOutPanel').html(html);
+
+        // --- Inject tablet frame and scroll CSS if not present ---
+        if (!document.getElementById('tabletFrameCSS')) {
+            const style = document.createElement('style');
+            style.id = 'tabletFrameCSS';
+            style.innerHTML = `
+            .tablet-frame {
+                max-width: 700px;
+                margin: 0 auto 24px auto;
+                background: #f4f6fa;
+                border-radius: 32px;
+                box-shadow: 0 8px 32px #003f8c22, 0 1.5px 8px #003f8c11;
+                padding: 32px 18px 32px 18px;
+                border: 4px solid #e0e6f1;
+                position: relative;
+            }
+            .tablet-frame:before {
+                content: '';
+                display: block;
+                position: absolute;
+                top: 16px; left: 50%;
+                transform: translateX(-50%);
+                width: 60px; height: 6px;
+                background: #d1dbe6;
+                border-radius: 3px;
+                opacity: 0.7;
+            }
+            .scrollable-table {
+                max-height: 400px;
+                overflow-y: auto;
+                border-radius: 18px;
+                background: #fff;
+                box-shadow: 0 2px 8px #e0e6f1;
+                padding: 0;
+            }
+            .scrollable-table table {
+                margin-bottom: 0 !important;
+                border-radius: 18px;
+                overflow: hidden;
+            }
+            `;
+            document.head.appendChild(style);
+        }
 
         // --- Automatic Email Reminders ---
         late.forEach(emp => {
