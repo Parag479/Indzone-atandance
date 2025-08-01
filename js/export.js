@@ -1374,6 +1374,9 @@ $(document).ready(function() {
         sendEmailReminder(empId, empName, function(success) {
             if (success) localStorage.setItem(key, '1');
         });
+        
+        // Also send WhatsApp reminder automatically
+        sendWhatsAppReminderIfNotSent(empId, empName);
     }
     function sendEmailReminder(empId, empName, cb) {
         db.ref('employees/' + empId).once('value').then(snapshot => {
@@ -1421,4 +1424,44 @@ $(document).ready(function() {
         const name = $(this).data('name');
         sendEmailReminder(empId, name);
     });
+
+    // New function to send WhatsApp reminders automatically
+    function sendWhatsAppReminderIfNotSent(empId, empName) {
+        // Use localStorage to avoid spamming: key = 'whatsappReminderSent_{empId}_{YYYYMMDD}'
+        const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const key = `whatsappReminderSent_${empId}_${today}`;
+        if (localStorage.getItem(key)) return; // Already sent today
+        
+        db.ref('employees/' + empId).once('value').then(snapshot => {
+            const emp = snapshot.val();
+            if (emp && emp.whatsapp) {
+                // Fix: Properly decrypt whatsapp if it's encrypted
+                const whatsappNumber = isEncrypted(emp.whatsapp) ? decrypt(emp.whatsapp) : emp.whatsapp;
+                
+                const msg = `Hi ${empName}, please punch out. Your 8 hours are complete.`;
+                const waUrl = `https://wa.me/${whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`;
+                
+                // Open WhatsApp in a new window
+                const whatsappWindow = window.open(waUrl, '_blank');
+                
+                // Mark as sent
+                localStorage.setItem(key, '1');
+                
+                // Log the notification
+                console.log(`WhatsApp reminder sent to ${empName} (${whatsappNumber})`);
+                showFloatingNotification(`WhatsApp reminder sent to ${empName}`);
+                
+                // Close the WhatsApp window after a delay (optional)
+                setTimeout(() => {
+                    if (whatsappWindow) {
+                        whatsappWindow.close();
+                    }
+                }, 5000); // 5 seconds delay
+            } else {
+                console.error("No WhatsApp number found for employee", empId);
+            }
+        }).catch(error => {
+            console.error("Error fetching employee data for WhatsApp:", error);
+        });
+    }
 });
