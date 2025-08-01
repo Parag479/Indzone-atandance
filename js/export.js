@@ -172,10 +172,11 @@ function renderLeaveTable(leaves, isAdmin) {
             const employees = Object.values(data);
             let html = `<div id='adminContactTable' style='margin-top:30px;'><h2>Employee Contact Info</h2><div class='table-responsive'><table class='table'><thead><tr><th>Employee ID</th><th>Name</th><th>WhatsApp</th><th>Email</th></tr></thead><tbody>`;
             employees.forEach(emp => {
-                const whatsappVal = emp.whatsapp ? (isEncrypted(emp.whatsapp) ? decrypt(emp.whatsapp) : emp.whatsapp) : '';
-                const emailVal = emp.email ? (isEncrypted(emp.email) ? decrypt(emp.email) : emp.email) : '';
-                html += `<tr><td>${emp.id}</td><td>${emp.name || ''}</td><td>${whatsappVal}</td><td>${emailVal}</td></tr>`;
-            });
+            // Fix: Properly decrypt and display full contact information for admin
+            const whatsappVal = emp.whatsapp ? (isEncrypted(emp.whatsapp) ? decrypt(emp.whatsapp) : emp.whatsapp) : '';
+            const emailVal = emp.email ? (isEncrypted(emp.email) ? decrypt(emp.email) : emp.email) : '';
+            html += `<tr><td>${emp.id}</td><td>${emp.name || ''}</td><td>${whatsappVal}</td><td>${emailVal}</td></tr>`;
+        });
             html += '</tbody></table></div></div>';
             if ($('#adminContactTable').length) $('#adminContactTable').remove();
             $('#leaveSection').after(html);
@@ -1372,26 +1373,39 @@ $(document).ready(function() {
         db.ref('employees/' + empId).once('value').then(snapshot => {
             const emp = snapshot.val();
             if (emp && emp.email) {
+                // Fix: Properly decrypt email if it's encrypted
+                const emailAddress = isEncrypted(emp.email) ? decrypt(emp.email) : emp.email;
+                
                 const templateParams = {
-                    to_email: emp.email,
+                    to_email: emailAddress,
                     to_name: empName,
                     message: `Hi ${empName}, please punch out. Your 8 hours are complete.`
                 };
+                
                 if (typeof emailjs !== 'undefined') {
                     emailjs.send('service_nlk542o', 'template_fyvulbh', templateParams)
                         .then(function(response) {
-                            showFloatingNotification(`Email reminder sent to ${empName} (${emp.email})`);
+                            showFloatingNotification(`Email reminder sent to ${empName} (${emailAddress})`);
                             if (cb) cb(true);
                         }, function(error) {
-                            showFloatingNotification(`Failed to send email to ${empName}`);
+                            console.error("Email sending failed:", error);
+                            showFloatingNotification(`Failed to send email to ${empName}: ${error.text}`);
                             if (cb) cb(false);
                         });
                 } else {
+                    console.error("EmailJS not available");
+                    showFloatingNotification("Email service not available");
                     if (cb) cb(false);
                 }
             } else {
+                console.error("No email found for employee", empId);
+                showFloatingNotification(`No email found for ${empName}`);
                 if (cb) cb(false);
             }
+        }).catch(error => {
+            console.error("Error fetching employee data:", error);
+            showFloatingNotification("Error fetching employee data");
+            if (cb) cb(false);
         });
     }
 
