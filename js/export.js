@@ -172,9 +172,15 @@ function renderLeaveTable(leaves, isAdmin) {
             const employees = Object.values(data);
             let html = `<div id='adminContactTable' style='margin-top:30px;'><h2>Employee Contact Info</h2><div class='table-responsive'><table class='table'><thead><tr><th>Employee ID</th><th>Name</th><th>WhatsApp</th><th>Email</th></tr></thead><tbody>`;
             employees.forEach(emp => {
-            // Fix: Properly decrypt and display full contact information for admin
-            const whatsappVal = emp.whatsapp ? (isEncrypted(emp.whatsapp) ? decrypt(emp.whatsapp) : emp.whatsapp) : '';
-            const emailVal = emp.email ? (isEncrypted(emp.email) ? decrypt(emp.email) : emp.email) : '';
+            // Fix: Properly decrypt and display full contact information for admin without masking
+            let whatsappVal = emp.whatsapp || '';
+            let emailVal = emp.email || '';
+            
+            // First try to decrypt if encrypted
+            if (isEncrypted(whatsappVal)) whatsappVal = decrypt(whatsappVal);
+            if (isEncrypted(emailVal)) emailVal = decrypt(emailVal);
+            
+            // For admin, show full values without masking
             html += `<tr><td>${emp.id}</td><td>${emp.name || ''}</td><td>${whatsappVal}</td><td>${emailVal}</td></tr>`;
         });
             html += '</tbody></table></div></div>';
