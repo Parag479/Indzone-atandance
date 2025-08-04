@@ -172,15 +172,15 @@ function renderLeaveTable(leaves, isAdmin) {
             const employees = Object.values(data);
             let html = `<div id='adminContactTable' style='margin-top:30px;'><h2>Employee Contact Info</h2><div class='table-responsive'><table class='table'><thead><tr><th>Employee ID</th><th>Name</th><th>WhatsApp</th><th>Email</th></tr></thead><tbody>`;
             employees.forEach(emp => {
-            // Fix: Properly decrypt and display full contact information for admin without masking
+            // Always decrypt and display full contact information for admin
             let whatsappVal = emp.whatsapp || '';
             let emailVal = emp.email || '';
             
-            // First try to decrypt if encrypted
+            // Always decrypt if encrypted
             if (isEncrypted(whatsappVal)) whatsappVal = decrypt(whatsappVal);
             if (isEncrypted(emailVal)) emailVal = decrypt(emailVal);
             
-            // For admin, show full values without masking
+            // For admin, show full values without any masking or encryption symbols
             html += `<tr><td>${emp.id}</td><td>${emp.name || ''}</td><td>${whatsappVal}</td><td>${emailVal}</td></tr>`;
         });
             html += '</tbody></table></div></div>';
@@ -1098,16 +1098,24 @@ $(document).ready(function() {
             });
         });
     } else {
-        // Admin sees decrypted value
+        // Admin sees decrypted value without any masking
         const empId = currentEmployeeId;
         if (empId) {
             db.ref('employees/' + empId).once('value').then(snapshot => {
                 const emp = snapshot.val();
                 if (emp) {
-                    $('#editWhatsapp').val(emp.whatsapp ? (isEncrypted(emp.whatsapp) ? decrypt(emp.whatsapp) : emp.whatsapp) : '');
-                    $('#editEmail').val(emp.email ? (isEncrypted(emp.email) ? decrypt(emp.email) : emp.email) : '');
+                    // Always decrypt for admin without any masking
+                    let whatsappVal = emp.whatsapp || '';
+                    let emailVal = emp.email || '';
+                    
+                    // Always decrypt if encrypted
+                    if (isEncrypted(whatsappVal)) whatsappVal = decrypt(whatsappVal);
+                    if (isEncrypted(emailVal)) emailVal = decrypt(emailVal);
+                    
+                    $('#editWhatsapp').val(whatsappVal);
+                    $('#editEmail').val(emailVal);
                     $('#editProfileSection').show();
-                    if (((emp.whatsapp ? (isEncrypted(emp.whatsapp) ? decrypt(emp.whatsapp) : emp.whatsapp) : '').trim() !== '') && ((emp.email ? (isEncrypted(emp.email) ? decrypt(emp.email) : emp.email) : '').trim() !== '')) {
+                    if (whatsappVal.trim() !== '' && emailVal.trim() !== '') {
                         $('#profileUpdateSuccess').show();
                     } else {
                         $('#profileUpdateSuccess').hide();
@@ -1117,12 +1125,60 @@ $(document).ready(function() {
         }
     }
 
-    // Add/Edit Contact Info section for employees (not admin)
-    if (!isAdmin) {
+    // Add/Edit Contact Info section
+    $('#editContactInfoSection').remove(); // Remove any existing section to avoid duplicates
+    
+    if (isAdmin) {
+        // For admin, show decrypted contact info without masking
+        if (currentEmployeeId) {
+            db.ref('employees/' + currentEmployeeId).once('value').then(snapshot => {
+                const emp = snapshot.val();
+                if (emp) {
+                    // Always decrypt values for admin
+                    let whatsappVal = emp.whatsapp || '';
+                    let emailVal = emp.email || '';
+                    
+                    // Always decrypt if encrypted
+                    if (isEncrypted(whatsappVal)) whatsappVal = decrypt(whatsappVal);
+                    if (isEncrypted(emailVal)) emailVal = decrypt(emailVal);
+                    
+                    const html = `
+                <div id="editContactInfoSection" style="margin: 0 auto;padding:18px 24px;background:#f8f9fa;border-radius:8px;max-width:400px;">
+                    <h3>Employee Contact Info (Admin View)</h3>
+                    <form id="editContactInfoForm">
+                        <label>WhatsApp Number:</label>
+                        <input type="text" id="editContactWhatsapp" style="margin-bottom:8px;width:220px;" value="${whatsappVal}" placeholder="e.g. +91 98765 43210">
+                        <br>
+                        <label>Email:</label>
+                        <input type="text" id="editContactEmail" style="margin-bottom:8px;width:220px;" value="${emailVal}" placeholder="e.g. rahul@company.com">
+                        <br>
+                        <button type="submit" style="margin-top:10px;">Save</button>
+                    </form>
+                    <div id="editContactSuccess" style="color:green;display:none;margin-top:8px;">Contact info updated!</div>
+                </div>`;
+                    $('#leaveSection').before(html);
+                    
+                    // On submit, encrypt and update
+                    $('#editContactInfoForm').off('submit').on('submit', function(e) {
+                        e.preventDefault();
+                        const whatsapp = $('#editContactWhatsapp').val().trim();
+                        const email = $('#editContactEmail').val().trim();
+                        // Encrypt before saving
+                        db.ref('employees/' + currentEmployeeId).update({
+                            whatsapp: encrypt(whatsapp),
+                            email: encrypt(email)
+                        }).then(() => {
+                            $('#editContactSuccess').show();
+                            setTimeout(() => $('#editContactSuccess').fadeOut(500), 2000);
+                        });
+                    });
+                }
+            });
+        }
+    } else {
+        // For regular employees, show masked contact info with show buttons
         db.ref('employees/' + currentEmployeeId).once('value').then(snapshot => {
             const emp = snapshot.val();
-            // Remove any existing section to avoid duplicates
-            $('#editContactInfoSection').remove();
             // Show section if WhatsApp or Email is missing, or always allow update
             const html = `
         <div id="editContactInfoSection" style="margin: 0 auto;padding:18px 24px;background:#f8f9fa;border-radius:8px;max-width:400px;">
@@ -1170,10 +1226,10 @@ $(document).ready(function() {
                 e.preventDefault();
                 const whatsapp = $('#editContactWhatsapp').val().trim();
                 const email = $('#editContactEmail').val().trim();
-                // Save as plain text (unencrypted)
+                // Save as encrypted
                 db.ref('employees/' + currentEmployeeId).update({
-                    whatsapp,
-                    email
+                    whatsapp: encrypt(whatsapp),
+                    email: encrypt(email)
                 }).then(() => {
                     $('#editContactSuccess').show();
                     setTimeout(() => $('#editContactSuccess').fadeOut(500), 2000);

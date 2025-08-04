@@ -324,6 +324,12 @@ $(document).ready(function() {
         if (!str) return '';
         try { return decodeURIComponent(escape(atob(str))); } catch (e) { return str; }
     }
+    
+    function isEncrypted(str) {
+        if (!str) return false;
+        // btoa output is base64, so only A-Za-z0-9+/= allowed, and usually longer than 8 chars
+        return /^[A-Za-z0-9+/=]{8,}$/.test(str);
+    }
 
     $('#punchInBtn').off('click').on('click', function() {
         const employeeId = $('#employeeId').val();
@@ -579,8 +585,18 @@ $(document).ready(function() {
                 $('#editProfileSection').hide();
                 return;
             }
-            $('#editWhatsapp').val(decrypt(emp.whatsapp || ''));
-            $('#editEmail').val(decrypt(emp.email || ''));
+            
+            // Always decrypt values for display
+            let whatsappVal = emp.whatsapp || '';
+            let emailVal = emp.email || '';
+            
+            // Always decrypt if encrypted
+            if (isEncrypted(whatsappVal)) whatsappVal = decrypt(whatsappVal);
+            if (isEncrypted(emailVal)) emailVal = decrypt(emailVal);
+            
+            // Set decrypted values in form fields
+            $('#editWhatsapp').val(whatsappVal);
+            $('#editEmail').val(emailVal);
             $('#editProfileSection').show();
         });
     }
@@ -599,9 +615,19 @@ $(document).ready(function() {
         e.preventDefault();
         const empId = $('#employeeId').val();
         if (!empId) return;
-        const whatsapp = encrypt($('#editWhatsapp').val().trim());
-        const email = encrypt($('#editEmail').val().trim());
-        db.ref('employees/' + empId).update({ whatsapp, email }).then(() => {
+        
+        // Get values from form
+        let whatsappVal = $('#editWhatsapp').val().trim();
+        let emailVal = $('#editEmail').val().trim();
+        
+        // Always encrypt before saving (ensure we don't double-encrypt)
+        if (!isEncrypted(whatsappVal)) whatsappVal = encrypt(whatsappVal);
+        if (!isEncrypted(emailVal)) emailVal = encrypt(emailVal);
+        
+        db.ref('employees/' + empId).update({ 
+            whatsapp: whatsappVal, 
+            email: emailVal 
+        }).then(() => {
             alert('Profile updated!');
         });
     });
