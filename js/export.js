@@ -1163,10 +1163,10 @@ $(document).ready(function() {
                         e.preventDefault();
                         const whatsapp = $('#editContactWhatsapp').val().trim();
                         const email = $('#editContactEmail').val().trim();
-                        // Encrypt before saving
+                        // Save as plain text (not encrypted)
                         db.ref('employees/' + currentEmployeeId).update({
-                            whatsapp: encrypt(whatsapp),
-                            email: encrypt(email)
+                            whatsapp: whatsapp,
+                            email: email
                         }).then(() => {
                             $('#editContactSuccess').show();
                             setTimeout(() => $('#editContactSuccess').fadeOut(500), 2000);
@@ -1226,10 +1226,10 @@ $(document).ready(function() {
                 e.preventDefault();
                 const whatsapp = $('#editContactWhatsapp').val().trim();
                 const email = $('#editContactEmail').val().trim();
-                // Save as encrypted
+                // Save as plain text (not encrypted)
                 db.ref('employees/' + currentEmployeeId).update({
-                    whatsapp: encrypt(whatsapp),
-                    email: encrypt(email)
+                    whatsapp: whatsapp,
+                    email: email
                 }).then(() => {
                     $('#editContactSuccess').show();
                     setTimeout(() => $('#editContactSuccess').fadeOut(500), 2000);

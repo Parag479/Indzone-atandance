@@ -620,10 +620,7 @@ $(document).ready(function() {
         let whatsappVal = $('#editWhatsapp').val().trim();
         let emailVal = $('#editEmail').val().trim();
         
-        // Always encrypt before saving (ensure we don't double-encrypt)
-        if (!isEncrypted(whatsappVal)) whatsappVal = encrypt(whatsappVal);
-        if (!isEncrypted(emailVal)) emailVal = encrypt(emailVal);
-        
+        // Save as plain text (not encrypted)
         db.ref('employees/' + empId).update({ 
             whatsapp: whatsappVal, 
             email: emailVal 

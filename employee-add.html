@@ -36,7 +36,7 @@
 
     // Add employee
     function addEmployee(id, name, location, whatsapp, email) {
-      return db.ref('employees/' + id).set({ id, name, location, whatsapp: encrypt(whatsapp), email: encrypt(email) });
+      return db.ref('employees/' + id).set({ id, name, location, whatsapp: whatsapp, email: email });
     }
 
     // Fetch employees
