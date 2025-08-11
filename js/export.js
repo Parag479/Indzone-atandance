@@ -15,6 +15,36 @@ const firebaseConfig = {
 if (!firebase.apps?.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
+// Helper function to safely create Date objects
+function safeDate(dateValue, fallbackText = 'Invalid Date') {
+    if (!dateValue || dateValue === '' || dateValue === null || dateValue === undefined) {
+        return fallbackText;
+    }
+    
+    const date = new Date(dateValue);
+    if (isNaN(date.getTime())) {
+        console.warn('Invalid date value:', dateValue);
+        return fallbackText;
+    }
+    
+    return date;
+}
+
+// Helper function to safely format date as locale string
+function safeDateString(dateValue, fallbackText = 'Invalid Date') {
+    const date = safeDate(dateValue, null);
+    if (date === null || typeof date === 'string') {
+        return fallbackText;
+    }
+    
+    try {
+        return date.toLocaleString();
+    } catch (error) {
+        console.warn('Error formatting date:', dateValue, error);
+        return fallbackText;
+    }
+}
+
 function getAttendanceData(callback) {
     db.ref('attendance').once('value').then(snapshot => {
         const data = snapshot.val() || {};
@@ -26,7 +56,20 @@ function getAttendanceData(callback) {
 function groupData(data) {
     const grouped = {};
     data.forEach(r => {
+        // Validate time value before creating Date object
+        if (!r.time || r.time === '' || r.time === null || r.time === undefined) {
+            console.warn('Invalid time value found in record:', r);
+            return; // Skip this record
+        }
+        
         const dt = new Date(r.time);
+        
+        // Check if the Date object is valid
+        if (isNaN(dt.getTime())) {
+            console.warn('Invalid date created from time value:', r.time, 'in record:', r);
+            return; // Skip this record
+        }
+        
         const date = dt.toISOString().slice(0, 10); // YYYY-MM-DD
         const time = dt.toLocaleTimeString(); // Only time
         const key = `${r.id}|${date}`;
@@ -71,6 +114,17 @@ function groupData(data) {
         if (r.punchInRaw && r.punchOutRaw) {
             const inTime = new Date(r.punchInRaw);
             const outTime = new Date(r.punchOutRaw);
+            
+            // Validate both dates before calculation
+            if (isNaN(inTime.getTime()) || isNaN(outTime.getTime())) {
+                console.warn('Invalid date values for hours calculation:', {
+                    punchInRaw: r.punchInRaw,
+                    punchOutRaw: r.punchOutRaw
+                });
+                r.hoursWorked = '';
+                return;
+            }
+            
             const diffMs = outTime - inTime;
             if (diffMs > 0) {
                 const hours = diffMs / (1000 * 60 * 60);
@@ -91,7 +145,11 @@ function groupData(data) {
 }
 
 function getDayStatus(dateStr, hoursWorked, punchIn, punchOut) {
-    const dateObj = new Date(dateStr);
+    const dateObj = safeDate(dateStr, null);
+    if (dateObj === null || typeof dateObj === 'string') {
+        console.warn('Invalid date in getDayStatus:', dateStr);
+        return '';
+    }
     const isSunday = dateObj.getDay() === 0;
     if (isSunday) return 'Holiday';
     if (punchIn && punchOut && parseFloat(hoursWorked) >= 8) return 'Present';
@@ -102,9 +160,12 @@ function getDayStatus(dateStr, hoursWorked, punchIn, punchOut) {
 // --- Leave System ---
 function getLeaveDays(fromDate, toDate) {
     if (!fromDate || !toDate) return '';
-    const from = new Date(fromDate);
-    const to = new Date(toDate);
-    if (isNaN(from) || isNaN(to)) return '';
+    const from = safeDate(fromDate, null);
+    const to = safeDate(toDate, null);
+    if (from === null || to === null || typeof from === 'string' || typeof to === 'string') {
+        console.warn('Invalid date values in getLeaveDays:', fromDate, toDate);
+        return '';
+    }
     // +1 to include both start and end date
     return Math.floor((to - from) / (1000 * 60 * 60 * 24)) + 1;
 }
@@ -258,8 +319,12 @@ function renderTable(data) {
         const user = JSON.parse(localStorage.getItem('user') || 'null');
         let leaveRows = user ? leavesCache.filter(l => l.employeeId === user.id && l.status === 'Accepted') : [];
         leaveRows.forEach(lv => {
-            const from = new Date(lv.fromDate);
-            const to = new Date(lv.toDate);
+            const from = safeDate(lv.fromDate, null);
+            const to = safeDate(lv.toDate, null);
+            if (from === null || to === null || typeof from === 'string' || typeof to === 'string') {
+                console.warn('Invalid leave dates:', lv.fromDate, lv.toDate);
+                return;
+            }
             for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
                 const iso = d.toISOString().slice(0, 10);
                 if (!allDates.includes(iso)) {
@@ -286,9 +351,16 @@ function renderTable(data) {
     }
     // If viewing as employee, fill missing Sundays for the month
     if (allDates.length > 0) {
-        const minDate = new Date(Math.min(...allDates.map(d => new Date(d))));
-        const maxDate = new Date(Math.max(...allDates.map(d => new Date(d))));
-        let date = new Date(minDate);
+        // Filter out invalid dates before processing
+        const validDates = allDates.filter(d => {
+            const testDate = safeDate(d, null);
+            return testDate !== null && typeof testDate !== 'string';
+        });
+        
+        if (validDates.length > 0) {
+            const minDate = new Date(Math.min(...validDates.map(d => new Date(d))));
+            const maxDate = new Date(Math.max(...validDates.map(d => new Date(d))));
+            let date = new Date(minDate);
         while (date <= maxDate) {
             const iso = date.toISOString().slice(0, 10);
             if (!allDates.includes(iso) && date.getDay() === 0) {
@@ -312,11 +384,20 @@ function renderTable(data) {
             }
             date.setDate(date.getDate() + 1);
         }
+        }
     }
     // Sort by date ascending
-    grouped.sort((a, b) => new Date(a.date) - new Date(b.date));
+    grouped.sort((a, b) => {
+        const dateA = safeDate(a.date, null);
+        const dateB = safeDate(b.date, null);
+        if (dateA === null || dateB === null || typeof dateA === 'string' || typeof dateB === 'string') {
+            return 0; // Keep original order if dates are invalid
+        }
+        return dateA - dateB;
+    });
     grouped.forEach(r => {
-        const isSunday = new Date(r.date).getDay() === 0;
+        const dateObj = safeDate(r.date, null);
+        const isSunday = (dateObj !== null && typeof dateObj !== 'string') ? dateObj.getDay() === 0 : false;
         const status = r.isHoliday ? 'Holiday' : (r.isLeave ? 'Leave' : getDayStatus(r.date, r.hoursWorked, r.punchIn, r.punchOut));
         // Make employee name clickable for admin
         let employeeNameCell = r.name || '';
@@ -497,7 +578,7 @@ function renderPendingPunchOuts() {
                 <td>${req.id}</td>
                 <td>${req.name}</td>
                 <td>${req.reason}</td>
-                <td>${new Date(req.time).toLocaleString()}</td>
+                <td>${safeDateString(req.time)}</td>
                 <td>
                     <button class="approve-btn" data-key="${key}">Approve</button>
                     <button class="reject-btn" data-key="${key}">Reject</button>
@@ -520,7 +601,7 @@ function renderMyPunchOutRequests(employeeId) {
         Object.values(data).forEach(req => {
             $tbody.append(`<tr>
                 <td>${req.reason}</td>
-                <td>${new Date(req.time).toLocaleString()}</td>
+                <td>${safeDateString(req.time)}</td>
                 <td><span style="color:#E70000;font-weight:bold;">Pending</span></td>
             </tr>`);
         });
@@ -531,7 +612,7 @@ function renderMyPunchOutRequests(employeeId) {
                 if (r.action === 'Punch Out' && r.reason) {
                     $tbody.append(`<tr>
                         <td>${r.reason}</td>
-                        <td>${new Date(r.time).toLocaleString()}</td>
+                        <td>${safeDateString(r.time)}</td>
                         <td><span style="color:#28a745;font-weight:bold;">Approved</span></td>
                     </tr>`);
                 }
@@ -611,11 +692,26 @@ function renderOverduePunchOuts() {
         const late = [];
         Object.keys(pending).forEach(id => {
             const p = pending[id];
-            if (p.lastPunchIn && (!p.lastPunchOut || new Date(p.lastPunchIn.time) > new Date(p.lastPunchOut.time))) {
-                const inTime = new Date(p.lastPunchIn.time);
-                const hours = (now - inTime) / (1000 * 60 * 60);
-                if (hours >= 8) {
-                    late.push({id, name: p.name, since: inTime.toLocaleString()});
+            if (p.lastPunchIn && p.lastPunchIn.time) {
+                const inTime = safeDate(p.lastPunchIn.time, null);
+                if (inTime === null || typeof inTime === 'string') {
+                    console.warn('Invalid punch in time for employee:', id, p.lastPunchIn.time);
+                    return;
+                }
+                
+                let shouldCheck = true;
+                if (p.lastPunchOut && p.lastPunchOut.time) {
+                    const outTime = safeDate(p.lastPunchOut.time, null);
+                    if (outTime !== null && typeof outTime !== 'string') {
+                        shouldCheck = inTime > outTime;
+                    }
+                }
+                
+                if (shouldCheck) {
+                    const hours = (now - inTime) / (1000 * 60 * 60);
+                    if (hours >= 8) {
+                        late.push({id, name: p.name, since: safeDateString(p.lastPunchIn.time)});
+                    }
                 }
             }
         });
@@ -1406,7 +1502,7 @@ $(document).ready(function() {
                     req.id || '',
                     req.name || '',
                     req.reason || '',
-                    req.time ? new Date(req.time).toLocaleString() : '',
+                    req.time ? safeDateString(req.time, '') : '',
                     'Pending'
                 ]);
             });
