@@ -36,6 +36,25 @@ img.company-logo {
     object-fit: contain;
 }
 
+/* KPI cards */
+.kpi-card {
+    background: linear-gradient(135deg, #f9fbff 0%, #eef4ff 100%);
+    padding: 16px 18px;
+    border-radius: 14px;
+    border: 1px solid #d9e4ff;
+    min-width: 170px;
+    text-align: center;
+    box-shadow: 0 6px 18px rgba(0,63,140,0.10);
+}
+.kpi-title { font-weight: 700; color: #234; letter-spacing: .3px; }
+.kpi-value { font-size: 1.8rem; font-weight: 900; margin-top: 6px; }
+
+/* Color variants */
+.kpi-present .kpi-value { color: #2e7d32; }
+.kpi-half .kpi-value { color: #fb8c00; }
+.kpi-leave .kpi-value { color: #c62828; }
+.kpi-hours .kpi-value { color: #1565c0; }
+
 .container {
     background: #fff;
     margin: 48px auto 32px auto;

@@ -736,6 +736,115 @@ $(document).ready(function() {
     checkAllEmployeesPunchout();
     // Har 5 minute me auto-refresh
     setInterval(checkAllEmployeesPunchout, 5 * 60 * 1000);
+
+    // --- KPI Calculation (Monthly) ---
+    function getCurrentYearMonth() {
+        return new Date().toISOString().slice(0, 7); // YYYY-MM
+    }
+    function getMonthLabel(ym) {
+        try {
+            const d = new Date(ym + '-01T00:00:00');
+            return d.toLocaleString(undefined, { month: 'long', year: 'numeric' });
+        } catch (e) { return ym; }
+    }
+    function computeAttendanceStats(empId, ym) {
+        return db.ref('attendance').once('value').then(snapshot => {
+            const data = snapshot.val() || {};
+            const records = Object.values(data).filter(r => r.id == empId && r.time && r.time.slice(0,7) === ym);
+            // Group by date
+            const byDate = {};
+            records.sort((a,b) => new Date(a.time) - new Date(b.time));
+            records.forEach(r => {
+                const date = new Date(r.time).toISOString().slice(0,10);
+                if (!byDate[date]) byDate[date] = { in: null, out: null };
+                if (r.action === 'Punch In') {
+                    if (!byDate[date].in) byDate[date].in = r.time;
+                } else if (r.action === 'Punch Out') {
+                    byDate[date].out = r.time; // keep last seen as latest due to sort
+                }
+            });
+            let presentDays = 0;
+            let halfDays = 0;
+            let totalHours = 0;
+            const attendanceDates = new Set();
+            Object.entries(byDate).forEach(([dateStr, day]) => {
+                if (day.in && day.out) {
+                    const diff = new Date(day.out) - new Date(day.in);
+                    if (diff > 0) {
+                        const hours = diff / (1000*60*60);
+                        totalHours += hours;
+                        attendanceDates.add(dateStr);
+                        if (hours >= 8) presentDays += 1;
+                        else if (hours >= 4) halfDays += 1; // 4-8 hours
+                    }
+                }
+            });
+            return { presentDays, halfDays, totalHours, attendanceDates };
+        });
+    }
+    function computeLeaveDates(empId, ym) {
+        // Accepted leaves from central 'leaves'
+        const p1 = db.ref('leaves').once('value').then(snapshot => {
+            const data = snapshot.val() || {};
+            const set = new Set();
+            Object.values(data).forEach(l => {
+                if (!l || l.status !== 'Accepted' || l.employeeId != empId) return;
+                const from = new Date(l.fromDate + 'T00:00:00');
+                const to = new Date(l.toDate + 'T00:00:00');
+                if (isNaN(from) || isNaN(to)) return;
+                for (let d = new Date(from); d <= to; d.setDate(d.getDate()+1)) {
+                    const iso = d.toISOString().slice(0,10);
+                    if (iso.startsWith(ym)) set.add(iso);
+                }
+            });
+            return set;
+        });
+        // Auto leaves under employees/{id}/leaves/{YYYY-MM-DD}
+        const p2 = db.ref('employees/' + empId + '/leaves').once('value').then(snapshot => {
+            const data = snapshot.val() || {};
+            const set = new Set();
+            Object.keys(data).forEach(dateStr => {
+                if (dateStr && dateStr.startsWith(ym)) set.add(dateStr);
+            });
+            return set;
+        });
+        return Promise.all([p1, p2]).then(([set1, set2]) => {
+            const all = new Set([...(set1||[]), ...(set2||[])]);
+            return all;
+        });
+    }
+    function updateKPIForSelected() {
+        const empId = $('#employeeId').val();
+        const $container = $('#kpiContainer');
+        if (!empId) { $container.hide(); return; }
+        const ym = getCurrentYearMonth();
+        $('#kpiMonthLabel').text(getMonthLabel(ym));
+        Promise.all([
+            computeAttendanceStats(empId, ym),
+            computeLeaveDates(empId, ym)
+        ]).then(([att, leaveSet]) => {
+            // Avoid double counting leave on days that already have attendance
+            let leaveDays = 0;
+            if (leaveSet && leaveSet.size) {
+                leaveSet.forEach(d => { if (!att.attendanceDates || !att.attendanceDates.has(d)) leaveDays++; });
+            }
+            $('#kpiPresentDays').text(att.presentDays || 0);
+            $('#kpiHalfDays').text(att.halfDays || 0);
+            $('#kpiLeaveDays').text(leaveDays);
+            $('#kpiHours').text((att.totalHours || 0).toFixed(1));
+            $container.show();
+        }).catch(() => {
+            $('#kpiPresentDays').text('-');
+            $('#kpiHalfDays').text('-');
+            $('#kpiLeaveDays').text('-');
+            $('#kpiHours').text('-');
+            $container.show();
+        });
+    }
+    // Update KPI when employee changes or data might have changed
+    $('#employeeId').on('change.kpi', updateKPIForSelected);
+    // Initial KPI attempt (will run after dropdown is populated and when trigger('change') fires)
+    setTimeout(updateKPIForSelected, 1000);
 });
 
 // Employee name click: auto-select in dropdown, update URL, and re-run notification logic
