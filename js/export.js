@@ -48,7 +48,9 @@ function safeDateString(dateValue, fallbackText = 'Invalid Date') {
 function getAttendanceData(callback) {
     db.ref('attendance').once('value').then(snapshot => {
         const data = snapshot.val() || {};
-        callback(Object.values(data));
+        // Preserve keys for later DB updates
+        const arr = Object.entries(data).map(([key, val]) => ({ _key: key, ...val }));
+        callback(arr);
     });
 }
 
@@ -301,6 +303,8 @@ function updateLeaveStatus(key, status, callback) {
 }
 
 function renderTable(data) {
+    // Keep raw list with keys for address persistence
+    const rawRows = Array.isArray(data) ? data : [];
     const grouped = groupData(data);
     const $tbody = $('#attendanceRecords tbody');
     $tbody.empty();
@@ -417,7 +421,7 @@ function renderTable(data) {
                 if (isAdmin && r.employeeId) {
                     nameCell = `<span class="clickable-employee" data-employee-id="${r.employeeId}" style="cursor:pointer;color:#003F8C;text-decoration:underline;">${name || ''}</span>`;
                 }
-                $tbody.append(`<tr>
+                $tbody.append(`<tr data-empid="${r.employeeId || ''}">
                     <td data-label="Date">${r.date}</td>
                     <td data-label="Employee Name">${nameCell}</td>
                     <td data-label="Punch In Time">${isSunday || r.isLeave ? '' : r.punchIn}</td>
@@ -432,7 +436,7 @@ function renderTable(data) {
                 </tr>`);
             });
         } else {
-            $tbody.append(`<tr>
+            $tbody.append(`<tr data-empid="${r.id || ''}">
                 <td data-label="Date">${r.date}</td>
                 <td data-label="Employee Name">${employeeNameCell}</td>
                 <td data-label="Punch In Time">${isSunday || r.isLeave ? '' : r.punchIn}</td>
@@ -470,6 +474,12 @@ function renderTable(data) {
             });
         });
     }
+    // After table render and handlers are attached, resolve location names and flag mismatches
+    setTimeout(function() {
+        resolveLocationCells();
+        // Optionally persist resolved names back to DB for records with Unknown
+        persistResolvedAddresses(rawRows);
+    }, 0);
 }
 
 let currentEmployeeId = null;
@@ -555,6 +565,193 @@ function extractLocality(locationName) {
         return parts[parts.length - 3];
     }
     return parts[0] || '';
+}
+
+// --- Export page: Location resolution and tampering checks ---
+function parseLatLonFromText(text) {
+    if (!text) return null;
+    const m = text.match(/Lat:\s*([\-\d.]+)\s*,\s*Lon:\s*([\-\d.]+)/i);
+    if (!m) return null;
+    return { lat: parseFloat(m[1]), lon: parseFloat(m[2]) };
+}
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+function isInIndiaBounds(lat, lon) {
+    return lat >= 6 && lat <= 38 && lon >= 68 && lon <= 97;
+}
+
+const _geoCache = window._geoCache || (window._geoCache = {});
+
+function autoBackfillAllAddresses() {
+    const $btnId = 'autoBackfillStatus';
+    if (!$('#' + $btnId).length) {
+        $('<div id="'+$btnId+'" style="margin:10px 0;color:#003F8C;font-weight:bold;"></div>').insertBefore('#attendanceRecords');
+    }
+    $('#'+$btnId).text('Scanning attendance for unknown addresses...');
+    getAttendanceData(function(all){
+        const candidates = all.filter(r => r.location && /Lat:\s*[-\d.]+\s*,\s*Lon:\s*[-\d.]+/i.test(r.location) && (!r.locationName || /^unknown$/i.test(r.locationName)));
+        if (candidates.length === 0) {
+            $('#'+$btnId).text('All addresses already resolved.');
+            return;
+        }
+        let i = 0;
+        function next() {
+            if (i >= candidates.length) { $('#'+$btnId).text('Backfill complete.'); return; }
+            const rec = candidates[i++];
+            const coords = parseLatLonFromText(rec.location);
+            if (!coords) { setTimeout(next, 300); return; }
+            $('#'+$btnId).text(`Backfilling addresses ${i}/${candidates.length} ...`);
+            reverseGeocodeWithCache(coords.lat, coords.lon, function(res){
+                const name = res.name || '';
+                if (name && rec._key) {
+                    db.ref('attendance/' + rec._key + '/locationName').set(name).finally(() => setTimeout(next, 700));
+                } else {
+                    setTimeout(next, 500);
+                }
+            });
+        }
+        next();
+    });
+}
+
+function persistResolvedAddresses(rawRows) {
+    if (!Array.isArray(rawRows) || rawRows.length === 0) return;
+    // Map by day and action for easier join
+    const byKey = {};
+    rawRows.forEach(r => {
+        if (!r || !r.time || !r.id) return;
+        const day = new Date(r.time).toISOString().slice(0,10);
+        const act = r.action;
+        byKey[`${r.id}|${day}|${act}`] = r;
+    });
+    // Walk rendered rows and push updates for Unknown names
+    $('#attendanceRecords tbody tr').each(function() {
+        const $tr = $(this);
+        const date = $tr.find("td[data-label='Date']").text().trim();
+        const empId = $tr.attr('data-empid') || '';
+        // Punch In
+        const inLoc = $tr.find("td[data-label='Punch In Location']").text().trim();
+        const inNameCell = $tr.find("td[data-label='Punch In Location Name']");
+        const inName = inNameCell.text().trim();
+        const inCoords = parseLatLonFromText(inLoc);
+        if (inCoords && (!inName || /^unknown$/i.test(inName) || /^resolving/i.test(inName))) {
+            reverseGeocodeWithCache(inCoords.lat, inCoords.lon, function(res){
+                const pretty = res.name || '';
+                if (!pretty) return;
+                const raw = byKey[`${empId}|${date}|Punch In`] || null;
+                if (raw && raw._key) {
+                    db.ref('attendance/' + raw._key + '/locationName').set(pretty);
+                }
+            });
+        }
+        // Punch Out
+        const outLoc = $tr.find("td[data-label='Punch Out Location']").text().trim();
+        const outNameCell = $tr.find("td[data-label='Punch Out Location Name']");
+        const outName = outNameCell.text().trim();
+        const outCoords = parseLatLonFromText(outLoc);
+        if (outCoords && (!outName || /^unknown$/i.test(outName) || /^resolving/i.test(outName))) {
+            reverseGeocodeWithCache(outCoords.lat, outCoords.lon, function(res){
+                const pretty = res.name || '';
+                if (!pretty) return;
+                const raw = byKey[`${empId}|${date}|Punch Out`] || null;
+                if (raw && raw._key) {
+                    db.ref('attendance/' + raw._key + '/locationName').set(pretty);
+                }
+            });
+        }
+    });
+}
+
+function reverseGeocodeWithCache(lat, lon, cb) {
+    // Identify as your app to respect Nominatim usage policy
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
+    $.ajax({
+        url,
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+    }).done(function(data){
+        const addr = data.address || {};
+        let parts = [];
+        if (addr.road) parts.push(addr.road);
+        if (addr.neighbourhood) parts.push(addr.neighbourhood);
+        if (addr.suburb) parts.push(addr.suburb);
+        if (addr.village) parts.push(addr.village);
+        if (addr.town) parts.push(addr.town);
+        if (addr.city) parts.push(addr.city);
+        if (addr.state) parts.push(addr.state);
+        if (addr.country) parts.push(addr.country);
+        let name = parts.join(', ');
+        if (!name && data.display_name) name = data.display_name;
+        const res = { name: name || '', refLat: parseFloat(data.lat) || lat, refLon: parseFloat(data.lon) || lon };
+        _geoCache[`${lat.toFixed(5)},${lon.toFixed(5)}`] = res;
+        cb(res);
+    }).fail(function(){
+        cb({ name: '', refLat: lat, refLon: lon });
+    });
+}
+
+
+function resolveLocationCells() {
+    if (!$('#attendanceRecords tbody').length) return;
+    const $rows = $('#attendanceRecords tbody tr');
+    const queue = [];
+    $rows.each(function() {
+        const $row = $(this);
+        ['Punch In', 'Punch Out'].forEach(kind => {
+            const $locCell = $row.find(`td[data-label='${kind} Location']`);
+            const $nameCell = $row.find(`td[data-label='${kind} Location Name']`);
+            if (!$locCell.length || !$nameCell.length) return;
+            const locText = ($locCell.text() || '').trim();
+            const nameText = ($nameCell.text() || '').trim();
+            const coords = parseLatLonFromText(locText);
+            if (!coords) {
+                if (locText) $nameCell.append(" <span style='color:#E70000;font-weight:bold;' title='Invalid coordinate format'>⚠</span>");
+                return;
+            }
+            if (!isInIndiaBounds(coords.lat, coords.lon)) {
+                $nameCell.append(" <span style='color:#E70000;font-weight:bold;' title='Out of India bounds'>⚠</span>");
+            }
+            if (!nameText || nameText.toLowerCase() === 'unknown') {
+                $nameCell.text('Resolving...');
+                queue.push({ $nameCell, coords, existing: '' });
+            } else {
+                // Also perform a light mismatch check
+                queue.push({ $nameCell, coords, existing: nameText });
+            }
+        });
+    });
+    let i = 0;
+    function next() {
+        if (i >= queue.length) return;
+        const item = queue[i++];
+        reverseGeocodeWithCache(item.coords.lat, item.coords.lon, function(res) {
+            const pretty = res.name;
+            if (!item.existing) {
+                // Replace Unknown/empty with proper name + locality
+                const locality = extractLocality(pretty);
+                item.$nameCell.text(pretty || '');
+                if (locality) item.$nameCell.append(` (${locality})`);
+            } else {
+                // If distance between recorded coord and reverse result center is large, flag
+                const dist = haversineKm(item.coords.lat, item.coords.lon, res.refLat, res.refLon);
+                if (dist > 2) {
+                    item.$nameCell.append(" <span style='color:#E70000;font-weight:bold;' title='Location/address mismatch with coordinates'>⚠</span>");
+                }
+            }
+            setTimeout(next, 600); // throttle to be respectful to the API
+        });
+    }
+    next();
 }
 
 // --- Admin Approval Panel for Pending Punch Outs ---
@@ -889,6 +1086,8 @@ $(document).ready(function() {
     // After login, show user info bar
     if (isAdmin) {
         setUserInfoBar('admin', 'Admin');
+        // Auto backfill all unknown/empty addresses for admin on login
+        setTimeout(autoBackfillAllAddresses, 500);
     } else {
         fetchEmployeeName(currentEmployeeId, function(empName) {
             setUserInfoBar(currentEmployeeId, empName || '');
