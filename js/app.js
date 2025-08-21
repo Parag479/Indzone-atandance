@@ -133,6 +133,11 @@ function getEmployeeIdFromURL() {
 }
 
 $(document).ready(function() {
+    // Initialize live timer if empid is already in URL (e.g., after redirect)
+    try {
+        const urlEmp = getEmployeeIdFromURL();
+        if (urlEmp) initWorkTimerForSelectedEmployee(urlEmp);
+    } catch(e) {}
     // Always request notification permission on page load if not already granted or denied
     if (window.Notification && Notification.permission !== "granted" && Notification.permission !== "denied") {
         Notification.requestPermission();
@@ -185,9 +190,12 @@ $(document).ready(function() {
             if (typeof checkAllEmployeesPunchout === 'function') {
                 checkAllEmployeesPunchout();
             }
+            // Init live work timer for selected employee
+            initWorkTimerForSelectedEmployee(empId);
         } else {
             // Hide WFH if cleared
             $('.wfh-row').hide();
+            stopWorkTimer();
         }
     });
 
@@ -301,6 +309,51 @@ $(document).ready(function() {
         $('#punchOutWarning').remove();
     }
 
+    // --- Live Work Timer (starts on Punch In, stops on Punch Out) ---
+    let workTimerInterval = null;
+    function formatHHMMSS(ms) {
+        const totalSeconds = Math.floor(ms / 1000);
+        const h = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+        const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+        const s = String(totalSeconds % 60).padStart(2, '0');
+        return `${h}:${m}:${s}`;
+    }
+    function startWorkTimer(fromISO) {
+        const start = new Date(fromISO);
+        $('#activeSessionTimer').show();
+        updateTick();
+        if (workTimerInterval) clearInterval(workTimerInterval);
+        workTimerInterval = setInterval(updateTick, 1000);
+        function updateTick() {
+            const now = new Date();
+            const diff = now - start;
+            $('#workTimer').text(formatHHMMSS(diff));
+        }
+    }
+    function stopWorkTimer() {
+        if (workTimerInterval) {
+            clearInterval(workTimerInterval);
+            workTimerInterval = null;
+        }
+        $('#activeSessionTimer').hide();
+        $('#workTimer').text('00:00:00');
+    }
+
+    // On load, if employee selected or via URL, show running timer from last Punch In not yet punched out
+    function initWorkTimerForSelectedEmployee(empId) {
+        if (!empId) { stopWorkTimer(); return; }
+        fetchAttendance(function(records) {
+            const userRecords = records.filter(r => r.id === empId).sort((a,b)=> new Date(a.time)-new Date(b.time));
+            const lastIn = [...userRecords].reverse().find(r => r.action === 'Punch In');
+            const lastOutAfterIn = [...userRecords].reverse().find(r => r.action === 'Punch Out' && lastIn && new Date(r.time) >= new Date(lastIn.time));
+            if (lastIn && !lastOutAfterIn) {
+                startWorkTimer(lastIn.time);
+            } else {
+                stopWorkTimer();
+            }
+        });
+    }
+
     // --- VPN/Proxy Detection Logic ---
     function checkLocationWithIP(geoLat, geoLon, callback) {
         $.get('https://ipapi.co/json/', function(data) {
@@ -380,6 +433,8 @@ $(document).ready(function() {
                             wfh: !!$('#wfhFlag').prop('checked')
                         }).then(() => {
                             alert('Punched In Successfully!');
+                            // Start live timer from this timestamp
+                            startWorkTimer(timestamp.toISOString());
                             // After OK, redirect to index.html
                             window.location.href = 'index.html';
                             $('#employeeId').val('');
@@ -474,6 +529,8 @@ $(document).ready(function() {
                                 setPunchButtons(true);
                                 clearStatus();
                                 clearPunchOutNotification();
+                                // Stop live timer on successful Punch Out
+                                stopWorkTimer();
                             });
                         });
                         return;
@@ -508,6 +565,7 @@ $(document).ready(function() {
                                 alert('Punch Out request sent for admin approval.');
                                 setPunchButtons(true);
                                 clearStatus();
+                                // Do not stop timer here; it's pending until approved
                             });
                         });
                         return;
@@ -529,6 +587,8 @@ $(document).ready(function() {
                         setPunchButtons(true);
                         clearStatus();
                         clearPunchOutNotification();
+                        // Stop live timer on successful Punch Out
+                        stopWorkTimer();
                     });
                 });
             });

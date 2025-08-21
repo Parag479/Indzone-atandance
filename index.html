@@ -21,6 +21,12 @@
     <div class="container">
         <img src="ind_logo.png" alt="Company Logo" class="company-logo">
         <h1>Indzone Attendance System</h1>
+        <div id="activeSessionTimer" style="text-align:center; margin:10px 0 10px; display:none;">
+            <div class="kpi-card kpi-hours" style="display:inline-block;">
+                <div class="kpi-title">Working Time</div>
+                <div id="workTimer" class="kpi-value">00:00:00</div>
+            </div>
+        </div>
         <div id="kpiContainer" style="margin:10px 0 20px; display:none;">
             <h2>Monthly Summary</h2>
             <div id="kpiCards" style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center;">
