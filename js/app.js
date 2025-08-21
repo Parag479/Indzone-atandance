@@ -316,7 +316,7 @@ $(document).ready(function() {
         const h = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
         const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
         const s = String(totalSeconds % 60).padStart(2, '0');
-        return `${h}:${m}:${s}`;
+        return `${h}h ${m}m ${s}s`;
     }
     function startWorkTimer(fromISO) {
         const start = new Date(fromISO);
