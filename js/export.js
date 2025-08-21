@@ -88,7 +88,8 @@ function groupData(data) {
                 punchOutRaw: '',
                 punchOutLocation: '',
                 punchOutLocationName: '',
-                hoursWorked: ''
+                hoursWorked: '',
+                wfh: false
             };
         }
         if (r.action === 'Punch In') {
@@ -96,12 +97,14 @@ function groupData(data) {
             grouped[key].punchInRaw = r.time;
             grouped[key].punchInLocation = r.location || '';
             grouped[key].punchInLocationName = r.locationName || '';
+            if (typeof r.wfh !== 'undefined') grouped[key].wfh = !!r.wfh;
         }
         if (r.action === 'Punch Out') {
             grouped[key].punchOut = time;
             grouped[key].punchOutRaw = r.time;
             grouped[key].punchOutLocation = r.location || '';
             grouped[key].punchOutLocationName = r.locationName || '';
+            if (typeof r.wfh !== 'undefined') grouped[key].wfh = !!r.wfh;
             // Add reason if present (for old/accepted data)
             if (r.reason) grouped[key].reason = r.reason;
             // If reason is auto-leave for less than 4 hours, mark as leave
@@ -432,6 +435,7 @@ function renderTable(data) {
                     <td data-label="Punch Out Location Name">${punchOutLocationNameDisplay}</td>
                     <td data-label="Hours Worked">${isSunday || r.isLeave ? '' : r.hoursWorked}</td>
                     <td data-label="Status">${status}</td>
+                    <td data-label="WFH">${r.wfh ? '<span class="badge" style="background:#003F8C;color:#fff;">WFH</span>' : ''}</td>
                     <td data-label="Reason"></td>
                 </tr>`);
             });
@@ -447,6 +451,7 @@ function renderTable(data) {
                 <td data-label="Punch Out Location Name">${punchOutLocationNameDisplay}</td>
                 <td data-label="Hours Worked">${isSunday || r.isLeave ? '' : r.hoursWorked}</td>
                 <td data-label="Status">${status}</td>
+                <td data-label="WFH">${r.wfh ? '<span class="badge" style="background:#003F8C;color:#fff;">WFH</span>' : ''}</td>
                 <td data-label="Reason">${reasonCell}</td>
             </tr>`);
         }
@@ -1043,8 +1048,8 @@ $(document).ready(function() {
                 return;
             }
             let rows = [
-                ['Date', 'Employee Name', 'Punch In Time', 'Punch Out Time', 'Location', 'Location Name', 'Hours Worked', 'Status'],
-                ...grouped.map(r => [r.date, r.name, r.punchIn, r.punchOut, r.location, r.locationName, r.hoursWorked, getDayStatus(r.date, r.hoursWorked, r.punchIn, r.punchOut)])
+                ['Date', 'Employee Name', 'Punch In Time', 'Punch Out Time', 'Location', 'Location Name', 'Hours Worked', 'Status', 'WFH'],
+                ...grouped.map(r => [r.date, r.name, r.punchIn, r.punchOut, r.location, r.locationName, r.hoursWorked, getDayStatus(r.date, r.hoursWorked, r.punchIn, r.punchOut), r.wfh ? 'Yes' : 'No'])
             ];
             let worksheet = XLSX.utils.aoa_to_sheet(rows);
             let workbook = XLSX.utils.book_new();
@@ -1061,7 +1066,7 @@ $(document).ready(function() {
             }
             // Only export attendance rows, not leave rows
             let rows = [
-                ['Date', 'Employee Name', 'Punch In Time', 'Punch Out Time', 'Location', 'Location Name', 'Hours Worked', 'Status']
+                ['Date', 'Employee Name', 'Punch In Time', 'Punch Out Time', 'Location', 'Location Name', 'Hours Worked', 'Status', 'WFH']
             ];
             grouped.forEach(r => {
                 if (r.isLeave) return; // skip leave rows
@@ -1073,7 +1078,8 @@ $(document).ready(function() {
                     r.location || '',
                     r.locationName || '',
                     r.hoursWorked || '',
-                    r.isHoliday ? 'Holiday' : getDayStatus(r.date, r.hoursWorked, r.punchIn, r.punchOut)
+                    r.isHoliday ? 'Holiday' : getDayStatus(r.date, r.hoursWorked, r.punchIn, r.punchOut),
+                    r.wfh ? 'Yes' : 'No'
                 ]);
             });
             let worksheet = XLSX.utils.aoa_to_sheet(rows);
@@ -1613,6 +1619,7 @@ $(document).ready(function() {
                 location: req.location,
                 locationName: req.locationName,
                 reason: req.reason,
+                wfh: !!req.wfh,
                 approvedBy: 'admin',
                 approvedAt: new Date().toISOString()
             }).then(function() {

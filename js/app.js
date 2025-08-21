@@ -137,6 +137,13 @@ $(document).ready(function() {
     if (window.Notification && Notification.permission !== "granted" && Notification.permission !== "denied") {
         Notification.requestPermission();
     }
+    // Show WFH checkbox only when empid is present (selected or in URL)
+    $('.wfh-row').hide();
+    try {
+        const urlEmp = (new URLSearchParams(window.location.search)).get('empid');
+        if (urlEmp) { $('.wfh-row').show(); }
+    } catch(e) {}
+    
     // Fetch employees from Firebase
     let employees = [];
     function fetchEmployees(callback) {
@@ -172,10 +179,15 @@ $(document).ready(function() {
             window.history.replaceState({}, '', url);
             // Disable dropdown
             $('#employeeId').prop('disabled', true);
+            // Show WFH row when emp selected
+            $('.wfh-row').show();
             // Re-run punchout notification logic for this employee
             if (typeof checkAllEmployeesPunchout === 'function') {
                 checkAllEmployeesPunchout();
             }
+        } else {
+            // Hide WFH if cleared
+            $('.wfh-row').hide();
         }
     });
 
@@ -364,7 +376,8 @@ $(document).ready(function() {
                             action: 'Punch In',
                             time: timestamp.toISOString(),
                             location: location,
-                            locationName: locationName
+                            locationName: locationName,
+                            wfh: !!$('#wfhFlag').prop('checked')
                         }).then(() => {
                             alert('Punched In Successfully!');
                             // After OK, redirect to index.html
@@ -451,7 +464,8 @@ $(document).ready(function() {
                                 action: 'Punch Out',
                                 time: timestamp.toISOString(),
                                 location: location,
-                                locationName: locationName
+                                locationName: locationName,
+                                wfh: !!$('#wfhFlag').prop('checked')
                             }).then(() => {
                                 alert('Punched Out Successfully!');
                                 window.location.href = 'index.html';
@@ -488,6 +502,7 @@ $(document).ready(function() {
                                 location: location,
                                 locationName: locationName,
                                 reason: reason,
+                                wfh: !!$('#wfhFlag').prop('checked'),
                                 status: 'pending'
                             }).then(() => {
                                 alert('Punch Out request sent for admin approval.');
@@ -504,7 +519,8 @@ $(document).ready(function() {
                         action: 'Punch Out',
                         time: timestamp.toISOString(),
                         location: location,
-                        locationName: locationName
+                        locationName: locationName,
+                        wfh: !!$('#wfhFlag').prop('checked')
                     }).then(() => {
                         alert('Punched Out Successfully!');
                         window.location.href = 'index.html';
@@ -550,10 +566,10 @@ $(document).ready(function() {
 
             // Prepare rows for export
             let rows = [
-                ['Employee ID', 'Employee Name', 'Action', 'Time', 'Location', 'Location Name']
+                ['Employee ID', 'Employee Name', 'Action', 'Time', 'Location', 'Location Name', 'WFH']
             ];
             filtered.forEach(r => {
-                rows.push([r.id, r.name, r.action, r.time, r.location, r.locationName]);
+                rows.push([r.id, r.name, r.action, r.time, r.location, r.locationName, r.wfh ? 'Yes' : 'No']);
             });
 
             let worksheet = XLSX.utils.aoa_to_sheet(rows);
