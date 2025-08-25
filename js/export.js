@@ -368,29 +368,52 @@ function renderTable(data) {
             const minDate = new Date(Math.min(...validDates.map(d => new Date(d))));
             const maxDate = new Date(Math.max(...validDates.map(d => new Date(d))));
             let date = new Date(minDate);
-        while (date <= maxDate) {
-            const iso = date.toISOString().slice(0, 10);
-            if (!allDates.includes(iso) && date.getDay() === 0) {
-                // Insert a Sunday holiday row
-                grouped.push({
-                    date: iso,
-                    name: '',
-                    punchIn: '',
-                    punchInRaw: '',
-                    punchInLocation: '',
-                    punchInLocationName: '',
-                    punchOut: '',
-                    punchOutRaw: '',
-                    punchOutLocation: '',
-                    punchOutLocationName: '',
-                    hoursWorked: '',
-                    status: 'Holiday',
-                    isHoliday: true
-                });
-                allDates.push(iso);
+            while (date <= maxDate) {
+                const iso = date.toISOString().slice(0, 10);
+                // 1) Auto-insert Sunday Holiday if missing
+                if (!allDates.includes(iso) && date.getDay() === 0) {
+                    grouped.push({
+                        date: iso,
+                        name: '',
+                        punchIn: '',
+                        punchInRaw: '',
+                        punchInLocation: '',
+                        punchInLocationName: '',
+                        punchOut: '',
+                        punchOutRaw: '',
+                        punchOutLocation: '',
+                        punchOutLocationName: '',
+                        hoursWorked: '',
+                        status: 'Holiday',
+                        isHoliday: true
+                    });
+                    allDates.push(iso);
+                }
+                // 2) Auto-insert Festival/Holiday Leave if found in calendar and no attendance/leave row exists for that date
+                if (!allDates.includes(iso) && typeof window.getHolidayByDate === 'function') {
+                    const h = window.getHolidayByDate(iso);
+                    if (h) {
+                        grouped.push({
+                            date: iso,
+                            name: '',
+                            punchIn: '',
+                            punchInRaw: '',
+                            punchInLocation: '',
+                            punchInLocationName: '',
+                            punchOut: '',
+                            punchOutRaw: '',
+                            punchOutLocation: '',
+                            punchOutLocationName: '',
+                            hoursWorked: '',
+                            status: 'Leave', // treat festivals as Leave per request
+                            isLeave: true,
+                            reason: h.name // show festival name in Reason column
+                        });
+                        allDates.push(iso);
+                    }
+                }
+                date.setDate(date.getDate() + 1);
             }
-            date.setDate(date.getDate() + 1);
-        }
         }
     }
     // Sort by date ascending

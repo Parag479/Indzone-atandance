@@ -884,8 +884,18 @@ $(document).ready(function() {
             });
             return set;
         });
-        return Promise.all([p1, p2]).then(([set1, set2]) => {
-            const all = new Set([...(set1||[]), ...(set2||[])]);
+        // 3) Festival/Holiday calendar-based leaves from holidays.js
+        const p3 = new Promise(resolve => {
+            const set = new Set();
+            if (typeof window.HOLIDAYS === 'object' && Array.isArray(window.HOLIDAYS)) {
+                window.HOLIDAYS.forEach(h => {
+                    if (h && typeof h.date === 'string' && h.date.startsWith(ym)) set.add(h.date);
+                });
+            }
+            resolve(set);
+        });
+        return Promise.all([p1, p2, p3]).then(([set1, set2, set3]) => {
+            const all = new Set([...(set1||[]), ...(set2||[]), ...(set3||[])]);
             return all;
         });
     }
