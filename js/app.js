@@ -148,6 +148,24 @@ $(document).ready(function() {
         const urlEmp = (new URLSearchParams(window.location.search)).get('empid');
         if (urlEmp) { $('.wfh-row').show(); }
     } catch(e) {}
+
+    // Today Holiday banner (from holidays.js)
+    function updateTodayHolidayBanner() {
+        $('#todayHolidayBanner').remove();
+        if (typeof window.getHolidayByDate === 'function') {
+            const today = new Date();
+            const iso = today.toISOString().slice(0,10);
+            const h = window.getHolidayByDate(iso);
+            if (h) {
+                const badgeColor = h.type === 'public' ? '#003F8C' : '#E70000';
+                const text = h.type === 'public' ? `Today is Public Holiday: ${h.name}` : `Today is Festival: ${h.name}`;
+                const banner = `<div id="todayHolidayBanner" style="margin:10px 0 12px; padding:10px 14px; background:#f0f4fa; border-left:6px solid ${badgeColor}; border-radius:8px; color:#003F8C; font-weight:600;">${text}</div>`;
+                $('.container h1').after(banner);
+            }
+        }
+    }
+    // Call once on load
+    updateTodayHolidayBanner();
     
     // Fetch employees from Firebase
     let employees = [];

@@ -389,26 +389,47 @@ function renderTable(data) {
                     });
                     allDates.push(iso);
                 }
-                // 2) Auto-insert Festival/Holiday Leave if found in calendar and no attendance/leave row exists for that date
+                // 2) Auto-insert from central holiday calendar if found and no attendance/leave row exists for that date
                 if (!allDates.includes(iso) && typeof window.getHolidayByDate === 'function') {
                     const h = window.getHolidayByDate(iso);
                     if (h) {
-                        grouped.push({
-                            date: iso,
-                            name: '',
-                            punchIn: '',
-                            punchInRaw: '',
-                            punchInLocation: '',
-                            punchInLocationName: '',
-                            punchOut: '',
-                            punchOutRaw: '',
-                            punchOutLocation: '',
-                            punchOutLocationName: '',
-                            hoursWorked: '',
-                            status: 'Leave', // treat festivals as Leave per request
-                            isLeave: true,
-                            reason: h.name // show festival name in Reason column
-                        });
+                        if (h.type === 'public') {
+                            // Public holiday → mark as Holiday and include name in Reason
+                            grouped.push({
+                                date: iso,
+                                name: '',
+                                punchIn: '',
+                                punchInRaw: '',
+                                punchInLocation: '',
+                                punchInLocationName: '',
+                                punchOut: '',
+                                punchOutRaw: '',
+                                punchOutLocation: '',
+                                punchOutLocationName: '',
+                                hoursWorked: '',
+                                status: 'Holiday',
+                                isHoliday: true,
+                                reason: h.name
+                            });
+                        } else if (h.type === 'festival') {
+                            // Festival → treat as Leave (non-mandatory off)
+                            grouped.push({
+                                date: iso,
+                                name: '',
+                                punchIn: '',
+                                punchInRaw: '',
+                                punchInLocation: '',
+                                punchInLocationName: '',
+                                punchOut: '',
+                                punchOutRaw: '',
+                                punchOutLocation: '',
+                                punchOutLocationName: '',
+                                hoursWorked: '',
+                                status: 'Leave',
+                                isLeave: true,
+                                reason: h.name // show festival name in Reason column
+                            });
+                        }
                         allDates.push(iso);
                     }
                 }
@@ -902,6 +923,56 @@ function showFloatingNotification(message) {
 }
 
 // --- Admin Panel: List all employees with 8+ hours punch-in and no punch-out ---
+// Admin-only: render holiday list with year filter and nice table
+function renderHolidayListSection() {
+    if (!isAdmin) return;
+    // Build container if missing
+    if ($('#adminHolidayList').length === 0) {
+        $('<div id="adminHolidayList" style="margin:30px 0;">\
+            <h2 style="display:flex;align-items:center;gap:12px;">Holiday List\
+              <select id="holidayYearFilter" style="margin-left:auto;padding:6px 10px;border-radius:6px;border:1px solid #ccd6e3;"></select>\
+            </h2>\
+            <div class="tablet-frame"><div class="scrollable-table">\
+              <table class="styled-punchout-table"><thead><tr>\
+                <th style="min-width:120px;">Date</th><th>Name</th><th style="min-width:110px;">Type</th>\
+              </tr></thead><tbody></tbody></table>\
+            </div></div>\
+        </div>').insertBefore('#pendingPunchOutPanel');
+    }
+    const $container = $('#adminHolidayList');
+    const $tbody = $('#adminHolidayList tbody');
+    const $yearSel = $('#holidayYearFilter');
+    $tbody.empty();
+
+    const all = Array.isArray(window.HOLIDAYS) ? [...window.HOLIDAYS] : [];
+    // Collect unique years
+    const years = Array.from(new Set(all.map(h => (h.date||'').slice(0,4)).filter(Boolean))).sort();
+    const currentYear = (new Date()).getFullYear().toString();
+    // Populate year dropdown once
+    if ($yearSel.children().length === 0) {
+        years.forEach(y => $yearSel.append(`<option value="${y}">${y}</option>`));
+        // If current year exists, select it, else select latest
+        if (years.includes(currentYear)) $yearSel.val(currentYear); else $yearSel.val(years[years.length-1] || '');
+        $yearSel.on('change', renderBody);
+    }
+
+    function renderBody() {
+        const y = $yearSel.val();
+        const list = all.filter(h => (h.date||'').startsWith(y));
+        list.sort((a,b) => (a.date||'').localeCompare(b.date||''));
+        $tbody.empty();
+        if (list.length === 0) {
+            $tbody.append('<tr><td colspan="3" style="text-align:center;color:#888;">No holidays for selected year</td></tr>');
+            return;
+        }
+        list.forEach(h => {
+            const typeLabel = h.type === 'public' ? '<span style="color:#fff;background:#003F8C;padding:2px 8px;border-radius:12px;">Public</span>' : '<span style="color:#fff;background:#E70000;padding:2px 8px;border-radius:12px;">Festival</span>';
+            $tbody.append(`<tr><td>${h.date || ''}</td><td>${h.name || ''}</td><td>${typeLabel}</td></tr>`);
+        });
+    }
+    renderBody();
+}
+
 function renderOverduePunchOuts() {
     if (!isAdmin) return;
     db.ref('attendance').once('value').then(snapshot => {
@@ -967,14 +1038,7 @@ function renderOverduePunchOuts() {
             style.id = 'tabletFrameCSS';
             style.innerHTML = `
             .tablet-frame {
-                max-width: 700px;
-                margin: 0 auto 24px auto;
-                background: #f4f6fa;
-                border-radius: 32px;
-                box-shadow: 0 8px 32px #003f8c22, 0 1.5px 8px #003f8c11;
-                padding: 32px 18px 32px 18px;
-                border: 4px solid #e0e6f1;
-                position: relative;
+             
             }
             .tablet-frame:before {
                 content: '';
@@ -1117,6 +1181,8 @@ $(document).ready(function() {
         setUserInfoBar('admin', 'Admin');
         // Auto backfill all unknown/empty addresses for admin on login
         setTimeout(autoBackfillAllAddresses, 500);
+        // Render Holiday List section for admin
+        renderHolidayListSection();
     } else {
         fetchEmployeeName(currentEmployeeId, function(empName) {
             setUserInfoBar(currentEmployeeId, empName || '');
