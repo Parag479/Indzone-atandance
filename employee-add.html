@@ -64,13 +64,93 @@
         }
         setLocation();
 
-        function updateList(employees) {
-            const $list = $('#employeeList');
-            $list.empty();
-            employees.forEach(emp => {
-                $list.append(`<li>${emp.id} - ${emp.name} <button class="delete-emp" data-id="${emp.id}">Delete</button></li>`);
+        let allEmployees = [];
+        
+        function renderEmployees(filterText = '') {
+            const term = (filterText || '').toLowerCase();
+            const filtered = allEmployees.filter(emp => {
+                const name = decrypt(emp.name || '');
+                const whatsappVal = decrypt(emp.whatsapp || '');
+                const emailVal = decrypt(emp.email || '');
+                const hay = `${emp.id || ''} ${name} ${whatsappVal} ${emailVal}`.toLowerCase();
+                return hay.includes(term);
             });
+            const $tbody = $('#employeeTable tbody');
+            $tbody.empty();
+            if (filtered.length === 0) {
+                $tbody.append('<tr><td colspan="5" style="text-align:center;color:#6b7b93;">No employees found</td></tr>');
+            } else {
+                filtered.forEach(emp => {
+                    const name = decrypt(emp.name || '');
+                    const whatsappVal = decrypt(emp.whatsapp || '');
+                    const emailVal = decrypt(emp.email || '');
+                    const digits = (whatsappVal+'').replace(/\D/g,'');
+                    const whatsapp = whatsappVal ? `<a href="https://wa.me/${digits}" target="_blank">${whatsappVal}</a>` : '-';
+                    const email = emailVal ? `<a href="mailto:${emailVal}">${emailVal}</a>` : '-';
+                    $tbody.append(`
+                        <tr data-id="${emp.id}">
+                            <td>${emp.id || '-'}</td>
+                            <td class="col-name">${name || '-'}</td>
+                            <td class="col-whatsapp">${whatsapp}</td>
+                            <td class="col-email">${email}</td>
+                            <td class="col-actions">
+                                <button class="edit-emp" data-id="${emp.id}">Edit</button>
+                                <button class="delete-emp" data-id="${emp.id}">Delete</button>
+                            </td>
+                        </tr>
+                    `);
+                });
+            }
+            $('#employeeCount').text(`Total: ${filtered.length}`);
         }
+        
+        function updateList(employees) {
+            allEmployees = (employees || []).slice().sort((a,b) => (a.id||'').localeCompare(b.id||''));
+            renderEmployees($('#employeeSearch').val() || '');
+        }
+        
+        // Live search
+        $(document).on('input', '#employeeSearch', function() {
+            renderEmployees($(this).val());
+        });
+        
+        // Start editing a row
+        $(document).on('click', '.edit-emp', function() {
+            const empId = $(this).data('id');
+            const row = $(this).closest('tr');
+            const emp = allEmployees.find(e => e.id === empId) || {};
+            const name = decrypt(emp.name || '');
+            const whatsappVal = decrypt(emp.whatsapp || '');
+            const emailVal = decrypt(emp.email || '');
+            row.find('.col-name').html(`<input type="text" name="name" value="${name}" style="width:100%;padding:6px 8px;">`);
+            row.find('.col-whatsapp').html(`<input type="text" name="whatsapp" value="${whatsappVal}" style="width:100%;padding:6px 8px;">`);
+            row.find('.col-email').html(`<input type="email" name="email" value="${emailVal}" style="width:100%;padding:6px 8px;">`);
+            row.find('.col-actions').html(`
+                <button class="save-emp" data-id="${empId}">Save</button>
+                <button class="cancel-emp" data-id="${empId}">Cancel</button>
+            `);
+        });
+        
+        // Cancel editing
+        $(document).on('click', '.cancel-emp', function() {
+            renderEmployees($('#employeeSearch').val() || '');
+        });
+        
+        // Save editing
+        $(document).on('click', '.save-emp', function() {
+            const empId = $(this).data('id');
+            const row = $(this).closest('tr');
+            const name = row.find('input[name="name"]').val().trim();
+            const whatsapp = row.find('input[name="whatsapp"]').val().trim();
+            const email = row.find('input[name="email"]').val().trim();
+            if (!name) { alert('Name is required'); return; }
+            db.ref('employees/' + empId).update({ name, whatsapp, email }).then(() => {
+                alert('Employee updated!');
+            }).catch(err => {
+                alert('Update failed: ' + (err && err.message ? err.message : err));
+            });
+        });
+        
         fetchEmployees(updateList);
 
         $('#addEmployeeForm').submit(function(e) {
@@ -91,28 +171,94 @@
             });
         });
 
-        // Delete employee from Firebase, and also delete their attendance records if confirmed
+        // Delete employee from Firebase, and also delete ALL their related data (including legacy nodes) if confirmed
         $(document).on('click', '.delete-emp', function() {
             const empId = $(this).data('id');
-            db.ref('attendance').once('value').then(snapshot => {
-                const data = snapshot.val() || {};
-                const used = Object.values(data).some(r => r.id === empId);
-                if (used) {
-                    if (confirm('Employee has attendance records! Delete employee and all their attendance data?')) {
-                        // Delete all attendance records for this employee
-                        const updates = {};
-                        Object.entries(data).forEach(([key, record]) => {
-                            if (record.id === empId) {
-                                updates['attendance/' + key] = null;
-                            }
-                        });
-                        // Delete employee
-                        updates['employees/' + empId] = null;
-                        db.ref().update(updates);
+
+            // Load entire root once to cover legacy/unknown nodes too
+            db.ref().once('value').then((rootSnap) => {
+                const root = rootSnap.val() || {};
+                const attData = root.attendance || {};
+                const leavesData = root.leaves || {};
+                const pendingData = root.pending_punchout || {};
+
+                // Detect any linked data
+                const hasAttendance = Object.values(attData).some(r => r && (r.id === empId || r.employeeId === empId || r.empId === empId));
+                const hasLeaves = Object.values(leavesData).some(r => r && (r.employeeId === empId || r.id === empId || r.empId === empId));
+                const hasPending = Object.values(pendingData).some(r => r && (r.id === empId || r.employeeId === empId || r.empId === empId));
+
+                // Also check generically across all top-level collections for legacy data
+                let legacyHit = false;
+                Object.entries(root).forEach(([topKey, topVal]) => {
+                    if (!topVal || typeof topVal !== 'object') return;
+                    // If shaped like a map of records, scan for fields
+                    const first = Object.values(topVal)[0];
+                    if (first && typeof first === 'object') {
+                        if (Object.values(topVal).some(r => r && (r.id === empId || r.employeeId === empId || r.empId === empId || r.userId === empId))) {
+                            legacyHit = true;
+                        }
                     }
-                } else if (confirm('Are you sure you want to delete this employee?')) {
-                    db.ref('employees/' + empId).remove();
-                }
+                });
+
+                const hasAny = hasAttendance || hasLeaves || hasPending || legacyHit || !!root.employees?.[empId];
+
+                const msg = hasAny
+                  ? 'Employee has related data (including legacy). Delete employee and ALL their data from every page?'
+                  : 'Are you sure you want to delete this employee?';
+                if (!confirm(msg)) return;
+
+                // Build multi-path delete updates for known nodes
+                const updates = {};
+
+                // Known collections
+                Object.entries(attData).forEach(([key, record]) => {
+                    if (record && (record.id === empId || record.employeeId === empId || record.empId === empId)) {
+                        updates['attendance/' + key] = null;
+                    }
+                });
+                Object.entries(leavesData).forEach(([key, record]) => {
+                    if (record && (record.employeeId === empId || record.id === empId || record.empId === empId)) {
+                        updates['leaves/' + key] = null;
+                    }
+                });
+                Object.entries(pendingData).forEach(([key, record]) => {
+                    if (record && (record.id === empId || record.employeeId === empId || record.empId === empId)) {
+                        updates['pending_punchout/' + key] = null;
+                    }
+                });
+
+                // Generic sweep for legacy/unknown collections
+                Object.entries(root).forEach(([topKey, topVal]) => {
+                    if (!topVal || typeof topVal !== 'object') return;
+                    // Skip known ones already processed
+                    if (['attendance','leaves','pending_punchout','employees'].includes(topKey)) return;
+
+                    // If the top-level value is a keyed map, remove entries matching employee
+                    Object.entries(topVal).forEach(([k, v]) => {
+                        if (v && typeof v === 'object') {
+                            if (v.id === empId || v.employeeId === empId || v.empId === empId || v.userId === empId) {
+                                updates[`${topKey}/${k}`] = null;
+                            }
+                        }
+                    });
+
+                    // Also support direct-keyed records where key is empId
+                    if (topVal && Object.prototype.hasOwnProperty.call(topVal, empId)) {
+                        updates[`${topKey}/${empId}`] = null;
+                    }
+                });
+
+                // Finally, remove employee profile (and any user-like profiles)
+                updates['employees/' + empId] = null;
+                if (root.users && root.users[empId]) updates['users/' + empId] = null;
+                if (root.staff && root.staff[empId]) updates['staff/' + empId] = null;
+
+                db.ref().update(updates).then(() => {
+                    alert('Employee and all related (including legacy) data deleted successfully.');
+                }).catch(err => {
+                    console.error('Delete failed:', err);
+                    alert('Delete failed: ' + (err && err.message ? err.message : err));
+                });
             });
         });
     });
@@ -134,7 +280,28 @@
             <button type="submit">Add Employee</button>
         </form>
         <h2>Current Employees</h2>
-        <ul id="employeeList"></ul>
+        <div id="currentEmployeesSection">
+            <div style="display:flex; gap:12px; align-items:center; justify-content:space-between; margin:8px 0 6px;">
+                <input type="text" id="employeeSearch" placeholder="Search by ID, name, WhatsApp, or email" style="flex:1; padding:10px; border:1.5px solid #bfc9d9; border-radius:7px;">
+                <span id="employeeCount" style="font-weight:700; color:#003F8C; white-space:nowrap;">Total: 0</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table" id="employeeTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>WhatsApp</th>
+                            <th>Email</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="5" style="text-align:center;color:#6b7b93;">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
         <div style="margin-top:20px;">
             <a href="index.html" class="export-link">Go to Punch In/Out</a> |
             <a href="export.html" class="export-link">Go to Export Panel</a>

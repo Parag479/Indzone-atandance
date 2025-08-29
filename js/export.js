@@ -1251,15 +1251,18 @@ $(document).ready(function() {
     });
 
     function loadLeaves() {
+        // Fetch leaves then filter out any whose employee no longer exists
         fetchLeaves(function(leaves) {
-            // Admin sees all, employee sees only own
-            let displayLeaves = leaves;
-            if (!isAdmin) {
-                displayLeaves = leaves.filter(l => l.employeeId === currentEmployeeId);
-            }
-            console.log('Rendering leaves:', displayLeaves.length, 'isAdmin:', isAdmin);
-            renderLeaveTable(displayLeaves, isAdmin);
-            showCurrentLeaveNotice(displayLeaves);
+            db.ref('employees').once('value').then(snap => {
+                const employeesMap = snap.val() || {};
+                // Keep only leaves where employeeId exists in employees
+                let filteredLeaves = (leaves || []).filter(l => l && l.employeeId && employeesMap[l.employeeId]);
+                // Admin sees all existing employees' leaves, employee sees only own
+                const displayLeaves = isAdmin ? filteredLeaves : filteredLeaves.filter(l => l.employeeId === currentEmployeeId);
+                console.log('Rendering leaves (existing employees only):', displayLeaves.length, 'isAdmin:', isAdmin);
+                renderLeaveTable(displayLeaves, isAdmin);
+                showCurrentLeaveNotice(displayLeaves);
+            });
         });
     }
 
@@ -1320,32 +1323,37 @@ $(document).ready(function() {
     // Export Leave Data logic
     $('#exportLeaveBtn').off('click').on('click', function() {
         fetchLeaves(function(leaves) {
-            if (!leaves || leaves.length === 0) {
-                alert('No leave data to export!');
-                return;
-            }
-            let rows = [
-                ['Employee ID', 'Employee Name', 'From Date', 'To Date', 'Days', 'Reason', 'Document URL', 'Status', 'Applied At']
-            ];
-            leaves.forEach(l => {
-                // Calculate days
-                let days = getLeaveDays(l.fromDate, l.toDate);
-                rows.push([
-                    l.employeeId || '',
-                    l.employeeName || '',
-                    l.fromDate || '',
-                    l.toDate || '',
-                    days,
-                    l.reason || '',
-                    l.proofUrl || '',
-                    l.status || '',
-                    l.appliedAt || ''
-                ]);
+            // Filter out leaves of employees that no longer exist
+            db.ref('employees').once('value').then(snap => {
+                const employeesMap = snap.val() || {};
+                const existingLeaves = (leaves || []).filter(l => l && l.employeeId && employeesMap[l.employeeId]);
+                if (!existingLeaves || existingLeaves.length === 0) {
+                    alert('No leave data to export!');
+                    return;
+                }
+                let rows = [
+                    ['Employee ID', 'Employee Name', 'From Date', 'To Date', 'Days', 'Reason', 'Document URL', 'Status', 'Applied At']
+                ];
+                existingLeaves.forEach(l => {
+                    // Calculate days
+                    let days = getLeaveDays(l.fromDate, l.toDate);
+                    rows.push([
+                        l.employeeId || '',
+                        l.employeeName || '',
+                        l.fromDate || '',
+                        l.toDate || '',
+                        days,
+                        l.reason || '',
+                        l.proofUrl || '',
+                        l.status || '',
+                        l.appliedAt || ''
+                    ]);
+                });
+                let worksheet = XLSX.utils.aoa_to_sheet(rows);
+                let workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Leave Data');
+                XLSX.writeFile(workbook, 'leave_data.xlsx');
             });
-            let worksheet = XLSX.utils.aoa_to_sheet(rows);
-            let workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, 'Leave Data');
-            XLSX.writeFile(workbook, 'leave_data.xlsx');
         });
     });
 
