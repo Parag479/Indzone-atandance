@@ -2,311 +2,139 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Add Employee</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Management</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <!-- Firebase App (core) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <!-- Firebase Realtime Database -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/employee-admin.js" defer></script>
     <script src="js/block-inspect.js"></script>
-    <script>
-    // Firebase config from user
-    const firebaseConfig = {
-      apiKey: "AIzaSyAQYjOF9YuB5D9LowTyGDP4JbG8cdWBJ88",
-      authDomain: "employeeapp-c948f.firebaseapp.com",
-      databaseURL: "https://employeeapp-c948f-default-rtdb.firebaseio.com",
-      projectId: "employeeapp-c948f",
-      storageBucket: "employeeapp-c948f.appspot.com",
-      messagingSenderId: "546940583535",
-      appId: "1:546940583535:web:3b930ca9f7646d9fe2979a"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    // --- Simple Encryption/Decryption ---
-    function encrypt(str) {
-      if (!str) return '';
-      try { return btoa(unescape(encodeURIComponent(str))); } catch (e) { return str; }
-    }
-    function decrypt(str) {
-      if (!str) return '';
-      try { return decodeURIComponent(escape(atob(str))); } catch (e) { return str; }
-    }
-
-    // Add employee
-    function addEmployee(id, name, location, whatsapp, email) {
-      return db.ref('employees/' + id).set({ id, name, location, whatsapp: whatsapp, email: email });
-    }
-
-    // Fetch employees
-    function fetchEmployees(callback) {
-      db.ref('employees').on('value', (snapshot) => {
-        const data = snapshot.val() || {};
-        const employees = Object.values(data);
-        callback(employees);
-      });
-    }
-
-    $(document).ready(function() {
-        // Auto-detect location
-        function setLocation() {
-          if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(function(position) {
-              const loc = `Lat: ${position.coords.latitude}, Lon: ${position.coords.longitude}`;
-              $('#employeeLocation').val(loc);
-            }, function() {
-              $('#employeeLocation').val('Location unavailable');
-            });
-          } else {
-            $('#employeeLocation').val('Geolocation not supported');
-          }
-        }
-        setLocation();
-
-        let allEmployees = [];
-        
-        function renderEmployees(filterText = '') {
-            const term = (filterText || '').toLowerCase();
-            const filtered = allEmployees.filter(emp => {
-                const name = decrypt(emp.name || '');
-                const whatsappVal = decrypt(emp.whatsapp || '');
-                const emailVal = decrypt(emp.email || '');
-                const hay = `${emp.id || ''} ${name} ${whatsappVal} ${emailVal}`.toLowerCase();
-                return hay.includes(term);
-            });
-            const $tbody = $('#employeeTable tbody');
-            $tbody.empty();
-            if (filtered.length === 0) {
-                $tbody.append('<tr><td colspan="5" style="text-align:center;color:#6b7b93;">No employees found</td></tr>');
-            } else {
-                filtered.forEach(emp => {
-                    const name = decrypt(emp.name || '');
-                    const whatsappVal = decrypt(emp.whatsapp || '');
-                    const emailVal = decrypt(emp.email || '');
-                    const digits = (whatsappVal+'').replace(/\D/g,'');
-                    const whatsapp = whatsappVal ? `<a href="https://wa.me/${digits}" target="_blank">${whatsappVal}</a>` : '-';
-                    const email = emailVal ? `<a href="mailto:${emailVal}">${emailVal}</a>` : '-';
-                    $tbody.append(`
-                        <tr data-id="${emp.id}">
-                            <td>${emp.id || '-'}</td>
-                            <td class="col-name">${name || '-'}</td>
-                            <td class="col-whatsapp">${whatsapp}</td>
-                            <td class="col-email">${email}</td>
-                            <td class="col-actions">
-                                <button class="edit-emp" data-id="${emp.id}">Edit</button>
-                                <button class="delete-emp" data-id="${emp.id}">Delete</button>
-                            </td>
-                        </tr>
-                    `);
-                });
-            }
-            $('#employeeCount').text(`Total: ${filtered.length}`);
-        }
-        
-        function updateList(employees) {
-            allEmployees = (employees || []).slice().sort((a,b) => (a.id||'').localeCompare(b.id||''));
-            renderEmployees($('#employeeSearch').val() || '');
-        }
-        
-        // Live search
-        $(document).on('input', '#employeeSearch', function() {
-            renderEmployees($(this).val());
-        });
-        
-        // Start editing a row
-        $(document).on('click', '.edit-emp', function() {
-            const empId = $(this).data('id');
-            const row = $(this).closest('tr');
-            const emp = allEmployees.find(e => e.id === empId) || {};
-            const name = decrypt(emp.name || '');
-            const whatsappVal = decrypt(emp.whatsapp || '');
-            const emailVal = decrypt(emp.email || '');
-            row.find('.col-name').html(`<input type="text" name="name" value="${name}" style="width:100%;padding:6px 8px;">`);
-            row.find('.col-whatsapp').html(`<input type="text" name="whatsapp" value="${whatsappVal}" style="width:100%;padding:6px 8px;">`);
-            row.find('.col-email').html(`<input type="email" name="email" value="${emailVal}" style="width:100%;padding:6px 8px;">`);
-            row.find('.col-actions').html(`
-                <button class="save-emp" data-id="${empId}">Save</button>
-                <button class="cancel-emp" data-id="${empId}">Cancel</button>
-            `);
-        });
-        
-        // Cancel editing
-        $(document).on('click', '.cancel-emp', function() {
-            renderEmployees($('#employeeSearch').val() || '');
-        });
-        
-        // Save editing
-        $(document).on('click', '.save-emp', function() {
-            const empId = $(this).data('id');
-            const row = $(this).closest('tr');
-            const name = row.find('input[name="name"]').val().trim();
-            const whatsapp = row.find('input[name="whatsapp"]').val().trim();
-            const email = row.find('input[name="email"]').val().trim();
-            if (!name) { alert('Name is required'); return; }
-            db.ref('employees/' + empId).update({ name, whatsapp, email }).then(() => {
-                alert('Employee updated!');
-            }).catch(err => {
-                alert('Update failed: ' + (err && err.message ? err.message : err));
-            });
-        });
-        
-        fetchEmployees(updateList);
-
-        $('#addEmployeeForm').submit(function(e) {
-            e.preventDefault();
-            const id = $('#newEmployeeId').val().trim();
-            const name = $('#newEmployeeName').val().trim();
-            const location = $('#employeeLocation').val() || "";
-            const whatsapp = $('#employeeWhatsapp').val().trim() || "";
-            const email = $('#employeeEmail').val().trim() || "";
-            if (!id || !name) return;
-            addEmployee(id, name, location || "", whatsapp, email).then(() => {
-                alert('Employee added!');
-                $('#newEmployeeId').val('');
-                $('#newEmployeeName').val('');
-                $('#employeeWhatsapp').val('');
-                $('#employeeEmail').val('');
-                setLocation();
-            });
-        });
-
-        // Delete employee from Firebase, and also delete ALL their related data (including legacy nodes) if confirmed
-        $(document).on('click', '.delete-emp', function() {
-            const empId = $(this).data('id');
-
-            // Load entire root once to cover legacy/unknown nodes too
-            db.ref().once('value').then((rootSnap) => {
-                const root = rootSnap.val() || {};
-                const attData = root.attendance || {};
-                const leavesData = root.leaves || {};
-                const pendingData = root.pending_punchout || {};
-
-                // Detect any linked data
-                const hasAttendance = Object.values(attData).some(r => r && (r.id === empId || r.employeeId === empId || r.empId === empId));
-                const hasLeaves = Object.values(leavesData).some(r => r && (r.employeeId === empId || r.id === empId || r.empId === empId));
-                const hasPending = Object.values(pendingData).some(r => r && (r.id === empId || r.employeeId === empId || r.empId === empId));
-
-                // Also check generically across all top-level collections for legacy data
-                let legacyHit = false;
-                Object.entries(root).forEach(([topKey, topVal]) => {
-                    if (!topVal || typeof topVal !== 'object') return;
-                    // If shaped like a map of records, scan for fields
-                    const first = Object.values(topVal)[0];
-                    if (first && typeof first === 'object') {
-                        if (Object.values(topVal).some(r => r && (r.id === empId || r.employeeId === empId || r.empId === empId || r.userId === empId))) {
-                            legacyHit = true;
-                        }
-                    }
-                });
-
-                const hasAny = hasAttendance || hasLeaves || hasPending || legacyHit || !!root.employees?.[empId];
-
-                const msg = hasAny
-                  ? 'Employee has related data (including legacy). Delete employee and ALL their data from every page?'
-                  : 'Are you sure you want to delete this employee?';
-                if (!confirm(msg)) return;
-
-                // Build multi-path delete updates for known nodes
-                const updates = {};
-
-                // Known collections
-                Object.entries(attData).forEach(([key, record]) => {
-                    if (record && (record.id === empId || record.employeeId === empId || record.empId === empId)) {
-                        updates['attendance/' + key] = null;
-                    }
-                });
-                Object.entries(leavesData).forEach(([key, record]) => {
-                    if (record && (record.employeeId === empId || record.id === empId || record.empId === empId)) {
-                        updates['leaves/' + key] = null;
-                    }
-                });
-                Object.entries(pendingData).forEach(([key, record]) => {
-                    if (record && (record.id === empId || record.employeeId === empId || record.empId === empId)) {
-                        updates['pending_punchout/' + key] = null;
-                    }
-                });
-
-                // Generic sweep for legacy/unknown collections
-                Object.entries(root).forEach(([topKey, topVal]) => {
-                    if (!topVal || typeof topVal !== 'object') return;
-                    // Skip known ones already processed
-                    if (['attendance','leaves','pending_punchout','employees'].includes(topKey)) return;
-
-                    // If the top-level value is a keyed map, remove entries matching employee
-                    Object.entries(topVal).forEach(([k, v]) => {
-                        if (v && typeof v === 'object') {
-                            if (v.id === empId || v.employeeId === empId || v.empId === empId || v.userId === empId) {
-                                updates[`${topKey}/${k}`] = null;
-                            }
-                        }
-                    });
-
-                    // Also support direct-keyed records where key is empId
-                    if (topVal && Object.prototype.hasOwnProperty.call(topVal, empId)) {
-                        updates[`${topKey}/${empId}`] = null;
-                    }
-                });
-
-                // Finally, remove employee profile (and any user-like profiles)
-                updates['employees/' + empId] = null;
-                if (root.users && root.users[empId]) updates['users/' + empId] = null;
-                if (root.staff && root.staff[empId]) updates['staff/' + empId] = null;
-
-                db.ref().update(updates).then(() => {
-                    alert('Employee and all related (including legacy) data deleted successfully.');
-                }).catch(err => {
-                    console.error('Delete failed:', err);
-                    alert('Delete failed: ' + (err && err.message ? err.message : err));
-                });
-            });
-        });
-    });
-    </script>
 </head>
-<body>
-    <div class="container">
-        <img src="ind_logo.png" alt="Company Logo" class="company-logo">
-        <h1>Add Employee</h1>
-        <form id="addEmployeeForm" style="margin-bottom:20px;">
-            <label for="newEmployeeId">Employee ID:</label>
-            <input type="text" id="newEmployeeId" required placeholder="e.g. INZ01">
-            <label for="newEmployeeName">Employee Name:</label>
-            <input type="text" id="newEmployeeName" required placeholder="e.g. Rahul Sharma">
-            <label for="employeeWhatsapp">WhatsApp Number:</label>
-            <input type="text" id="employeeWhatsapp" placeholder="e.g. +91 98765 43210">
-            <label for="employeeEmail">Email:</label>
-            <input type="email" id="employeeEmail" placeholder="e.g. rahul@company.com">
-            <button type="submit">Add Employee</button>
-        </form>
-        <h2>Current Employees</h2>
-        <div id="currentEmployeesSection">
-            <div style="display:flex; gap:12px; align-items:center; justify-content:space-between; margin:8px 0 6px;">
-                <input type="text" id="employeeSearch" placeholder="Search by ID, name, WhatsApp, or email" style="flex:1; padding:10px; border:1.5px solid #bfc9d9; border-radius:7px;">
-                <span id="employeeCount" style="font-weight:700; color:#003F8C; white-space:nowrap;">Total: 0</span>
+<body class="portal-body">
+    <main class="page-shell">
+        <section class="hero-banner admin-hero">
+            <div class="hero-copy">
+                <span class="eyebrow">Admin setup</span>
+                <h1>Employee master panel for IDs, contact details, and access PINs.</h1>
+                <p>Create employee records, assign optional PINs, and remove team members when they leave.</p>
+                <div class="hero-link-row">
+                    <a href="index.html" class="ghost-link">Attendance page</a>
+                    <a href="export.html" class="ghost-link">Dashboard</a>
+                </div>
             </div>
-            <div class="table-responsive">
-                <table class="table" id="employeeTable">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Name</th>
-                            <th>WhatsApp</th>
-                            <th>Email</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr><td colspan="5" style="text-align:center;color:#6b7b93;">Loading...</td></tr>
-                    </tbody>
-                </table>
+        </section>
+
+        <section id="employeeAdminAuth" class="panel auth-panel">
+            <div class="section-heading">
+                <span class="section-kicker">Admin only</span>
+                <h2>Unlock employee management</h2>
+                <p>Enter the admin password to manage employees and login access.</p>
             </div>
-        </div>
-        <div style="margin-top:20px;">
-            <a href="index.html" class="export-link">Go to Punch In/Out</a> |
-            <a href="export.html" class="export-link">Go to Export Panel</a>
-        </div>
-    </div>
-    <script src="js/app.js"></script>
+            <form id="employeeAdminLoginForm" class="stack-form compact-form">
+                <label for="employeeAdminPassword">Admin password</label>
+                <input type="password" id="employeeAdminPassword" placeholder="Admin password">
+                <button type="submit">Open employee panel</button>
+            </form>
+        </section>
+
+        <section id="employeeAdminShell" class="panel portal-panel" style="display:none;">
+            <div class="panel-toolbar">
+                <div>
+                    <span class="role-chip">Admin</span>
+                    <h2>Employee management</h2>
+                    <p class="muted-text">Add employees, update contact details, assign PINs, and remove former employees.</p>
+                </div>
+                <div class="toolbar-actions">
+                    <span id="employeeCount" class="info-pill">Total: 0</span>
+                    <button type="button" id="employeeAdminLogout" class="secondary-button">Logout</button>
+                </div>
+            </div>
+
+            <div class="two-column-grid">
+                <div class="panel soft-panel">
+                    <div class="section-heading small">
+                        <span class="section-kicker">Add employee</span>
+                        <h3>Create employee login</h3>
+                    </div>
+                    <form id="addEmployeeForm" class="stack-form">
+                        <label for="newEmployeeId">Employee ID</label>
+                        <input type="text" id="newEmployeeId" required placeholder="e.g. INZ01">
+
+                        <label for="newEmployeeName">Employee name</label>
+                        <input type="text" id="newEmployeeName" required placeholder="e.g. Rahul Sharma">
+
+                        <label for="employeeWhatsapp">WhatsApp number</label>
+                        <input type="text" id="employeeWhatsapp" placeholder="e.g. +91 98765 43210">
+
+                        <label for="employeeEmail">Email</label>
+                        <input type="email" id="employeeEmail" placeholder="e.g. rahul@company.com">
+
+                        <label for="newEmployeePin">Access PIN</label>
+                        <input type="password" id="newEmployeePin" placeholder="Optional. Minimum 4 characters">
+
+                        <button type="submit">Add employee</button>
+                    </form>
+                </div>
+
+                <div class="panel soft-panel">
+                    <div class="section-heading small">
+                        <span class="section-kicker">Access control</span>
+                        <h3>How privacy works now</h3>
+                    </div>
+                    <div class="info-list">
+                        <div class="info-row">
+                            <span class="info-label">Employee login</span>
+                            <strong>ID + PIN required</strong>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Employee dashboard</span>
+                            <strong>Only own records visible</strong>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Admin dashboard</span>
+                            <strong>Full records + approvals</strong>
+                        </div>
+                    </div>
+                    <div class="mobile-tip-box">
+                        <strong>Recommended</strong>
+                        <p>Employees can change only their own PIN after login. Admin can reveal, assign, or replace any employee PIN from this panel.</p>
+                    </div>
+                </div>
+            </div>
+
+            <section class="panel soft-panel">
+                <div class="section-toolbar">
+                    <div>
+                        <span class="section-kicker">Employee directory</span>
+                        <h3>Current employees</h3>
+                    </div>
+                    <input type="text" id="employeeSearch" class="table-search" placeholder="Search by ID, name, WhatsApp or email">
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table" id="employeeTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>WhatsApp</th>
+                                <th>Email</th>
+                                <th>PIN status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="6" style="text-align:center;color:#6b7b93;">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </section>
+    </main>
 </body>
 </html>

@@ -2,78 +2,195 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Indzone Attendance System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indzone Attendance Portal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="js/holidays.js"></script>
-    <script src="js/app.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/app.js" defer></script>
     <script src="js/block-inspect.js"></script>
-
 </head>
-<body>
-    <!-- Notification Bell Icon -->
-    <div id="notification-bell" style="position:fixed; top:20px; right:30px; z-index:1000; cursor:pointer;">
-      <span id="bell-badge" style="display:none; position:absolute; top:-8px; right:-8px; background:red; color:white; border-radius:50%; padding:2px 7px; font-size:13px; font-weight:bold;">!</span>
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#003F8C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+<body class="portal-body">
+    <div id="notification-bell" class="notification-bell" title="Punch-out reminders">
+        <span id="bell-badge" class="notification-badge">!</span>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
     </div>
-    <!-- End Notification Bell Icon -->
-    <div class="container">
-        <img src="ind_logo.png" alt="Company Logo" class="company-logo">
-        <h1>Indzone Attendance System</h1>
-        <div id="activeSessionTimer" style="text-align:center; margin:10px 0 10px; display:none;">
-            <div class="kpi-card kpi-hours" style="display:inline-block;">
-                <div class="kpi-title">Working Time</div>
-                <div id="workTimer" class="kpi-value">00h 00m 00s</div>
-            </div>
-        </div>
-        <div id="kpiContainer" style="margin:10px 0 20px; display:none;">
-            <h2>Monthly Summary</h2>
-            <div id="kpiCards" style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center;">
-                <div class="kpi-card kpi-present">
-                    <div class="kpi-title">Present Days</div>
-                    <div id="kpiPresentDays" class="kpi-value">-</div>
-                </div>
-                <div class="kpi-card kpi-half">
-                    <div class="kpi-title">Half Days</div>
-                    <div id="kpiHalfDays" class="kpi-value">-</div>
-                </div>
-                <div class="kpi-card kpi-leave">
-                    <div class="kpi-title">Leave Days</div>
-                    <div id="kpiLeaveDays" class="kpi-value">-</div>
-                </div>
-                <div class="kpi-card kpi-hours">
-                    <div class="kpi-title">Hours This Month</div>
-                    <div id="kpiHours" class="kpi-value">-</div>
+
+    <main class="page-shell">
+        <section class="hero-banner">
+            <div class="hero-copy">
+                <span class="eyebrow">Indzone Hospitality</span>
+                <h1>Attendance portal built for daily use on phone and desktop.</h1>
+                <p>Employee login, live working timer, monthly summary, and one-tap access to the records dashboard.</p>
+                <div class="hero-link-row">
+                    <a href="export.html" class="ghost-link">Open dashboard</a>
+                    <a href="employee-add.html" class="ghost-link">Manage employees</a>
                 </div>
             </div>
-            <div id="kpiMonthLabel" style="text-align:center; margin-top:6px; color:#555;"></div>
-        </div>
-        <form id="punchForm">
-            <label for="employeeId">Employee ID:</label>
-            <select id="employeeId" required>
-                <option value="">Select Employee</option>
-            </select>
-            <label for="employeeName">Employee Name:</label>
-            <input type="text" id="employeeName" readonly>
-            <input type="hidden" id="location">
-            <input type="hidden" id="locationName">
-            <div class="wfh-row" style="margin:8px 0 12px;">
-                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
-                    <input type="checkbox" id="wfhFlag">
-                    <span>Work From Home(WFH) </span>
-                </label>
+            <div class="hero-highlight">
+                <img src="ind_logo.png" alt="Indzone Logo" class="company-logo">
+                <div class="hero-stats">
+                    <div class="hero-stat-card">
+                        <span class="hero-stat-label">Mode</span>
+                        <strong>Employee-first</strong>
+                    </div>
+                    <div class="hero-stat-card">
+                        <span class="hero-stat-label">Best for</span>
+                        <strong>Mobile attendance</strong>
+                    </div>
+                </div>
             </div>
-            <div class="btn-row">
-                <button type="button" id="punchInBtn">Punch In</button>
-                <button type="button" id="punchOutBtn">Punch Out</button>
+        </section>
+
+        <section id="authGate" class="panel auth-panel">
+            <div class="section-heading">
+                <span class="section-kicker">Secure access</span>
+                <h2>Employee login</h2>
+                <p>Use your Employee ID and Access PIN to open your attendance page.</p>
             </div>
-        </form>
-        <div style="margin-top:20px; text-align:right;">
-            <!-- <a href="employee-add.html" class="export-link">Add Employee</a> | -->
-            <a href="export.html" class="export-link">Go to Attendance Records</a>
-        </div>
-    </div>
+            <form id="employeeLoginForm" class="stack-form compact-form">
+                <label for="loginEmployeeId">Employee ID</label>
+                <input type="text" id="loginEmployeeId" placeholder="e.g. INZ01" autocomplete="username">
+
+                <label for="loginEmployeePin">Access PIN</label>
+                <div class="input-with-toggle">
+                    <input type="password" id="loginEmployeePin" placeholder="Assigned by admin" autocomplete="current-password">
+                    <button type="button" class="toggle-secret" data-target="#loginEmployeePin">Show</button>
+                </div>
+
+                <button type="submit">Open my attendance</button>
+            </form>
+            <p class="auth-note">Employees can change only their own PIN after login. If someone forgot a PIN, admin can reveal or replace it.</p>
+
+            <details class="admin-access-card">
+                <summary>Admin access</summary>
+                <form id="adminLoginForm" class="stack-form compact-form">
+                    <label for="adminPassword">Admin password</label>
+                    <div class="input-with-toggle">
+                        <input type="password" id="adminPassword" placeholder="Admin password">
+                        <button type="button" class="toggle-secret" data-target="#adminPassword">Show</button>
+                    </div>
+                    <button type="submit">Open admin dashboard</button>
+                </form>
+            </details>
+        </section>
+
+        <section id="portalShell" class="panel portal-panel" style="display:none;">
+            <div class="panel-toolbar">
+                <div>
+                    <span id="sessionRoleBadge" class="role-chip">Employee</span>
+                    <h2 id="portalGreeting">Welcome</h2>
+                    <p id="portalSubtitle" class="muted-text">Punch in and punch out from your own portal.</p>
+                </div>
+                <div class="toolbar-actions">
+                    <a href="export.html" class="ghost-link solid-ghost">View records</a>
+                    <button type="button" id="logoutBtn" class="secondary-button">Logout</button>
+                </div>
+            </div>
+
+            <div id="todayHolidayHost"></div>
+
+            <div id="activeSessionTimer" class="live-timer-panel" style="display:none;">
+                <div class="live-timer-text">
+                    <span>Active shift</span>
+                    <strong id="workTimer">00h 00m 00s</strong>
+                </div>
+                <span id="liveTimerHint" class="timer-hint">Punch out reminder will appear after 8 hours.</span>
+            </div>
+
+            <div id="kpiContainer" class="metrics-grid" style="display:none;">
+                <article class="metric-card accent-green">
+                    <span class="metric-label">Present days</span>
+                    <strong id="kpiPresentDays">0</strong>
+                </article>
+                <article class="metric-card accent-amber">
+                    <span class="metric-label">Half days</span>
+                    <strong id="kpiHalfDays">0</strong>
+                </article>
+                <article class="metric-card accent-red">
+                    <span class="metric-label">Leave days</span>
+                    <strong id="kpiLeaveDays">0</strong>
+                </article>
+                <article class="metric-card accent-blue">
+                    <span class="metric-label">Hours this month</span>
+                    <strong id="kpiHours">0.0</strong>
+                </article>
+            </div>
+            <p id="kpiMonthLabel" class="metric-caption"></p>
+
+            <div class="two-column-grid">
+                <div class="panel soft-panel">
+                    <div class="section-heading small">
+                        <span class="section-kicker">Today</span>
+                        <h3>Mark attendance</h3>
+                    </div>
+                    <div id="punchStatusHost"></div>
+                    <form id="punchForm" class="stack-form">
+                        <label for="employeeCodeView">Employee ID</label>
+                        <input type="text" id="employeeCodeView" readonly>
+
+                        <input type="hidden" id="employeeId">
+
+                        <label for="employeeName">Employee name</label>
+                        <input type="text" id="employeeName" readonly>
+
+                        <input type="hidden" id="location">
+                        <input type="hidden" id="locationName">
+
+                        <label class="toggle-card" for="wfhFlag">
+                            <input type="checkbox" id="wfhFlag">
+                            <span>
+                                <strong>Work From Home</strong>
+                                <small>Enable only if today is WFH.</small>
+                            </span>
+                        </label>
+
+                        <div class="btn-row sticky-actions">
+                            <button type="button" id="punchInBtn">Punch in</button>
+                            <button type="button" id="punchOutBtn" class="secondary-button">Punch out</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="panel soft-panel">
+                    <div class="section-heading small">
+                        <span class="section-kicker">Live status</span>
+                        <h3>Your day at a glance</h3>
+                    </div>
+                    <div class="info-list">
+                        <div class="info-row">
+                            <span class="info-label">Current status</span>
+                            <strong id="todayStatusLabel">Not punched in</strong>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Last punch in</span>
+                            <strong id="lastPunchInLabel">-</strong>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Last punch out</span>
+                            <strong id="lastPunchOutLabel">-</strong>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Portal access</span>
+                            <strong>Only your own records are visible.</strong>
+                        </div>
+                    </div>
+                    <div class="mobile-tip-box">
+                        <strong>Mobile tip</strong>
+                        <p>Allow location permission for the fastest attendance flow. The same login also works on the records and leave dashboard.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
 </body>
 </html>

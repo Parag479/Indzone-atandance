@@ -2,102 +2,304 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Attendance Export Panel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
     <script src="js/holidays.js"></script>
+    <script src="js/auth.js"></script>
     <script src="js/export.js" defer></script>
     <script src="js/block-inspect.js"></script>
 </head>
-<body>
-    <div id="userInfoBar" style="position:absolute;top:18px;right:17rem;font-weight:bold;color:#003F8C;background:#f0f4fa;padding:8px 18px;border-radius:8px;box-shadow:0 2px 8px #e0e6f1;z-index:10;display:none;"></div>
-    <div class="container">
-        <img src="ind_logo.png" alt="Company Logo" class="company-logo">
-        <h1>Attendance Export Panel</h1>
-        <div style="margin-bottom:20px;">
-            <button id="exportAllBtn">Export All Data</button>
-            <button id="exportFilterBtn" class="admin-only">Export Filtered Data</button>
-            <a href="index.html" class="export-link">Back to Punch In/Out</a> |
-            <a href="employee-add.html" class="export-link admin-only">Add Employee</a>
-        </div>
-        <div id="pendingPunchOutPanel" style="margin:30px 0;"></div>
-        <div id="attendanceRecords">
-            <h2>All Attendance Records</h2>
-            <div class="table-responsive">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Employee Name</th>
-                            <th>Punch In Time</th>
-                            <th>Punch In Location</th>
-                            <th>Punch In Location Name</th>
-                            <th>Punch Out Time</th>
-                            <th>Punch Out Location</th>
-                            <th>Punch Out Location Name</th>
-                            <th>Worked Hours</th>
-                            <th>Status</th>
-                            <th>WFH</th>
-                            <th>Reason</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Data will be loaded here -->
-                    </tbody>
-                </table>
+<body class="portal-body dashboard-body">
+    <main class="dashboard-shell">
+        <section class="dashboard-hero panel dark-panel">
+            <div>
+                <span class="eyebrow">Indzone dashboard</span>
+                <h1>Attendance, leave, approvals, and team visibility in one panel.</h1>
+                <p>Employee view only shows personal records. Admin view gets full dashboard, filters, approvals, and exports.</p>
             </div>
-        </div>
-        <button id="toggleAttendanceRows" style="margin:10px auto 0;display:block;">Show More</button>
-        <div id="editProfileSection" style="margin-top:30px;max-width:400px;margin-left:auto;margin-right:auto;display:none;">
-            <h2>Edit Profile</h2>
-            <form id="editProfileForm">
-                <label for="editWhatsapp">WhatsApp Number:</label>
-                <input type="text" id="editWhatsapp" placeholder="e.g. +91 98765 43210">
-                <label for="editEmail">Email:</label>
-                <input type="email" id="editEmail" placeholder="e.g. rahul@company.com">
-                <button type="submit">Update Profile</button>
-                <span id="profileUpdateSuccess" style="display:none;color:green;font-size:1.2em;vertical-align:middle;">✔️</span>
-            </form>
-        </div>
-        <div id="leaveSection" style="margin-top:40px;">
-            <h2>Leave Application</h2>
-            <form id="leaveForm" style="max-width:400px;margin:auto; display:none;">
-                <label for="leaveFrom">From Date:</label>
-                <input type="date" id="leaveFrom" required>
-                <label for="leaveTo">To Date:</label>
-                <input type="date" id="leaveTo" required>
-                <label for="leaveReason">Reason:</label>
-                <input type="text" id="leaveReason" required placeholder="Reason for leave">
-                <label for="leaveProof">Document (optional):</label>
-                <input type="file" id="leaveProof" accept="image/*,application/pdf">
-                <button type="submit">Apply Leave</button>
-            </form>
-            <div id="currentLeaveNotice" style="display:none; color:#E70000; font-weight:bold; text-align:center; margin:20px 0;"></div>
-            <h2 style="margin-top:30px;">Leave Requests</h2>
-            <div class="table-responsive">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Employee ID</th>
-                            <th>Employee Name</th>
-                            <th>From</th>
-                            <th>To</th>
-                            <th>Days</th>
-                            <th>Reason</th>
-                            <th>Document</th>
-                            <th>Status/Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="leaveRecords">
-                        <!-- Leave data will be loaded here -->
-                    </tbody>
-                </table>
+            <div class="hero-link-row">
+                <a href="index.html" class="ghost-link light-ghost">Back to attendance</a>
+                <a href="employee-add.html" class="ghost-link light-ghost">Manage employees</a>
             </div>
-        </div>
-    </div>
+        </section>
+
+        <section id="portalAuthGate" class="panel auth-panel">
+            <div class="section-heading">
+                <span class="section-kicker">Portal access</span>
+                <h2>Login to continue</h2>
+                <p>Employees can only view their own records. Admin can view the full dashboard.</p>
+            </div>
+
+            <div class="auth-switch" role="tablist" aria-label="Portal role">
+                <button type="button" class="auth-tab active" data-role="employee">Employee</button>
+                <button type="button" class="auth-tab" data-role="admin">Admin</button>
+            </div>
+
+            <form id="employeePortalLoginForm" class="stack-form compact-form auth-form-panel">
+                <label for="portalEmployeeId">Employee ID</label>
+                <input type="text" id="portalEmployeeId" placeholder="e.g. INZ01" autocomplete="username">
+
+                <label for="portalEmployeePin">Access PIN</label>
+                <div class="input-with-toggle">
+                    <input type="password" id="portalEmployeePin" placeholder="Assigned by admin" autocomplete="current-password">
+                    <button type="button" class="toggle-secret" data-target="#portalEmployeePin">Show</button>
+                </div>
+
+                <button type="submit">Open my dashboard</button>
+            </form>
+            <p class="auth-note">Employees can change only their own PIN after login. Admin can reveal or replace any employee PIN.</p>
+
+            <form id="adminPortalLoginForm" class="stack-form compact-form auth-form-panel" style="display:none;">
+                <label for="portalAdminPassword">Admin password</label>
+                <div class="input-with-toggle">
+                    <input type="password" id="portalAdminPassword" placeholder="Admin password">
+                    <button type="button" class="toggle-secret" data-target="#portalAdminPassword">Show</button>
+                </div>
+                <button type="submit">Open admin dashboard</button>
+            </form>
+        </section>
+
+        <section id="dashboardShell" class="dashboard-main" style="display:none;">
+            <div class="panel dashboard-header-panel">
+                <div>
+                    <span id="dashboardRoleChip" class="role-chip">Employee</span>
+                    <h2 id="dashboardTitle">Attendance Dashboard</h2>
+                    <p id="dashboardSubtitle" class="muted-text">Your attendance records and leave requests.</p>
+                </div>
+                <div class="toolbar-actions">
+                    <button id="exportAllBtn" class="admin-only">Export all data</button>
+                    <button id="exportFilterBtn">Export current view</button>
+                    <button id="exportLeaveBtn" class="admin-only">Export leave data</button>
+                    <button id="logoutBtn" class="secondary-button">Logout</button>
+                </div>
+            </div>
+
+            <div id="userInfoBar" class="info-banner" style="display:none;"></div>
+
+            <section id="employeeDashboardPanel" class="employee-only">
+                <div class="metrics-grid">
+                    <article class="metric-card accent-green">
+                        <span class="metric-label">Present days</span>
+                        <strong id="employeeMetricPresent">0</strong>
+                    </article>
+                    <article class="metric-card accent-amber">
+                        <span class="metric-label">Half days</span>
+                        <strong id="employeeMetricHalf">0</strong>
+                    </article>
+                    <article class="metric-card accent-red">
+                        <span class="metric-label">Leave days</span>
+                        <strong id="employeeMetricLeave">0</strong>
+                    </article>
+                    <article class="metric-card accent-blue">
+                        <span class="metric-label">Hours this month</span>
+                        <strong id="employeeMetricHours">0.0</strong>
+                    </article>
+                </div>
+                <div class="dashboard-grid">
+                    <div class="panel soft-panel">
+                        <div class="section-heading small">
+                            <span class="section-kicker">Month summary</span>
+                            <h3 id="employeeSummaryTitle">This month</h3>
+                        </div>
+                        <div id="employeeGraphBars" class="graph-bars"></div>
+                    </div>
+                    <div class="panel soft-panel">
+                        <div class="section-heading small">
+                            <span class="section-kicker">Status</span>
+                            <h3>Your access is private</h3>
+                        </div>
+                        <p class="muted-text">This view only shows your own attendance, leave, and profile details.</p>
+                        <div id="currentLeaveNotice" class="info-banner warning-banner" style="display:none;"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="adminDashboardPanel" class="admin-only">
+                <div class="metrics-grid">
+                    <article class="metric-card accent-blue">
+                        <span class="metric-label">Total employees</span>
+                        <strong id="adminMetricEmployees">0</strong>
+                    </article>
+                    <article class="metric-card accent-green">
+                        <span class="metric-label">Present today</span>
+                        <strong id="adminMetricPresent">0</strong>
+                    </article>
+                    <article class="metric-card accent-amber">
+                        <span class="metric-label">Pending punch-outs</span>
+                        <strong id="adminMetricPendingPunch">0</strong>
+                    </article>
+                    <article class="metric-card accent-red">
+                        <span class="metric-label">Pending leaves</span>
+                        <strong id="adminMetricPendingLeaves">0</strong>
+                    </article>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="panel soft-panel">
+                        <div class="section-heading small">
+                            <span class="section-kicker">Daily graph</span>
+                            <h3>Team attendance overview</h3>
+                        </div>
+                        <div id="statusGraphBars" class="graph-bars"></div>
+                    </div>
+                    <div class="panel soft-panel">
+                        <div class="section-heading small">
+                            <span class="section-kicker">Action center</span>
+                            <h3>Today highlights</h3>
+                        </div>
+                        <div id="adminInsightsList" class="insight-list"></div>
+                    </div>
+                </div>
+
+                <div class="panel soft-panel">
+                    <div class="section-heading small">
+                        <span class="section-kicker">Filters</span>
+                        <h3>Admin filters</h3>
+                    </div>
+                    <div class="filter-grid">
+                        <div>
+                            <label for="adminEmployeeFilter">Employee</label>
+                            <select id="adminEmployeeFilter">
+                                <option value="">All employees</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="adminMonthFilter">Month</label>
+                            <input type="month" id="adminMonthFilter">
+                        </div>
+                        <div class="filter-actions">
+                            <button type="button" id="applyFiltersBtn">Apply filters</button>
+                            <button type="button" id="clearFiltersBtn" class="secondary-button">Reset</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="pendingPunchOutPanel" class="panel soft-panel admin-only"></section>
+            <section id="myPunchOutPanel" class="panel soft-panel employee-only"></section>
+
+            <section id="attendanceRecords" class="panel soft-panel">
+                <div class="section-toolbar">
+                    <div>
+                        <span class="section-kicker">Attendance records</span>
+                        <h2 id="attendanceHeading">Attendance records</h2>
+                    </div>
+                    <button id="toggleAttendanceRows" class="secondary-button">Show more</button>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Employee name</th>
+                                <th>Punch in time</th>
+                                <th>Punch in location</th>
+                                <th>Punch in location name</th>
+                                <th>Punch out time</th>
+                                <th>Punch out location</th>
+                                <th>Punch out location name</th>
+                                <th>Worked hours</th>
+                                <th>Status</th>
+                                <th>WFH</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="editProfileSection" class="panel soft-panel employee-only" style="display:none;">
+                <div class="section-heading small">
+                    <span class="section-kicker">Profile</span>
+                    <h3>Contact details</h3>
+                </div>
+                <form id="editProfileForm" class="stack-form compact-form">
+                    <label for="editWhatsapp">WhatsApp number</label>
+                    <input type="text" id="editWhatsapp" placeholder="e.g. +91 98765 43210">
+
+                    <label for="editEmail">Email</label>
+                    <input type="email" id="editEmail" placeholder="e.g. rahul@company.com">
+
+                    <button type="submit">Update profile</button>
+                    <span id="profileUpdateSuccess" class="inline-success" style="display:none;">Updated</span>
+                </form>
+
+                <div class="section-heading small" style="margin-top:20px;">
+                    <span class="section-kicker">Security</span>
+                    <h3>Change my PIN</h3>
+                </div>
+                <form id="changePinForm" class="stack-form compact-form">
+                    <label for="changePinNew">New PIN</label>
+                    <div class="input-with-toggle">
+                        <input type="password" id="changePinNew" placeholder="Minimum 4 characters">
+                        <button type="button" class="toggle-secret" data-target="#changePinNew">Show</button>
+                    </div>
+
+                    <label for="changePinConfirm">Confirm PIN</label>
+                    <div class="input-with-toggle">
+                        <input type="password" id="changePinConfirm" placeholder="Repeat the same PIN">
+                        <button type="button" class="toggle-secret" data-target="#changePinConfirm">Show</button>
+                    </div>
+
+                    <div class="btn-row">
+                        <button type="button" id="generateMyPinBtn" class="secondary-button">Generate PIN</button>
+                        <button type="submit">Save my PIN</button>
+                    </div>
+                    <span id="pinUpdateSuccess" class="inline-success" style="display:none;">PIN updated</span>
+                </form>
+            </section>
+
+            <section id="leaveSection" class="panel soft-panel">
+                <div class="section-heading small">
+                    <span class="section-kicker">Leave</span>
+                    <h3 id="leaveHeading">Leave requests</h3>
+                </div>
+
+                <form id="leaveForm" class="stack-form compact-form employee-only" style="display:none;">
+                    <label for="leaveFrom">From date</label>
+                    <input type="date" id="leaveFrom" required>
+
+                    <label for="leaveTo">To date</label>
+                    <input type="date" id="leaveTo" required>
+
+                    <label for="leaveReason">Reason</label>
+                    <input type="text" id="leaveReason" required placeholder="Reason for leave">
+
+                    <label for="leaveProof">Document (optional)</label>
+                    <input type="file" id="leaveProof" accept="image/*,application/pdf">
+
+                    <button type="submit">Apply leave</button>
+                </form>
+
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Employee ID</th>
+                                <th>Employee name</th>
+                                <th>From</th>
+                                <th>To</th>
+                                <th>Days</th>
+                                <th>Reason</th>
+                                <th>Document</th>
+                                <th>Status / action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaveRecords"></tbody>
+                    </table>
+                </div>
+            </section>
+        </section>
+    </main>
 </body>
 </html>
