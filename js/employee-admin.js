@@ -286,36 +286,55 @@ $(document).ready(function () {
   });
 
   $(document).on("click", ".delete-emp", function () {
-    const employeeId = $(this).data("id");
+    const employeeId = window.IndzoneAuth.normalizeEmployeeId($(this).data("id"));
     const confirmed = confirm(
       "Remove this employee and all related attendance, leave, and pending punch-out records?"
     );
 
     if (!confirmed) return;
 
+    function matchesEmployee(record) {
+      if (!record) return false;
+      const recordId = window.IndzoneAuth.normalizeEmployeeId(record.id || record.employeeId);
+      return recordId === employeeId;
+    }
+
     employeeAdminDb.ref().once("value").then((rootSnapshot) => {
       const root = rootSnapshot.val() || {};
       const updates = {};
 
       Object.entries(root.attendance || {}).forEach(([key, record]) => {
-        if (record && record.id === employeeId) updates[`attendance/${key}`] = null;
+        if (matchesEmployee(record)) updates[`attendance/${key}`] = null;
       });
 
       Object.entries(root.leaves || {}).forEach(([key, record]) => {
-        if (record && record.employeeId === employeeId) updates[`leaves/${key}`] = null;
+        if (matchesEmployee(record)) updates[`leaves/${key}`] = null;
       });
 
       Object.entries(root.pending_punchout || {}).forEach(([key, record]) => {
-        if (record && record.id === employeeId) {
-          updates[`pending_punchout/${key}`] = null;
+        if (matchesEmployee(record)) updates[`pending_punchout/${key}`] = null;
+      });
+
+      Object.entries(root.employees || {}).forEach(([key, record]) => {
+        const keyId = window.IndzoneAuth.normalizeEmployeeId(key);
+        if (keyId === employeeId || matchesEmployee(record)) {
+          updates[`employees/${key}`] = null;
         }
       });
-
       updates[`employees/${employeeId}`] = null;
 
-      employeeAdminDb.ref().update(updates).then(() => {
+      return employeeAdminDb.ref().update(updates).then(() => {
+        const session = window.IndzoneAuth.getSession();
+        if (
+          window.IndzoneAuth.isEmployeeSession(session) &&
+          session.employeeId === employeeId
+        ) {
+          window.IndzoneAuth.clearSession();
+        }
         alert("Employee and related data removed.");
       });
+    }).catch(() => {
+      alert("Could not remove employee data. Please check your connection and try again.");
     });
   });
 
