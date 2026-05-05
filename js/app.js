@@ -13,6 +13,10 @@ if (!firebase.apps.length) {
 }
 
 const attendanceDb = firebase.database();
+const STANDARD_WORK_HOURS = 8;
+const ADMIN_NOTIFICATION_EMAIL = "admin@example.com";
+const ADMIN_NOTIFICATION_WHATSAPP = "919876543210";
+const AUTO_OPEN_LATE_PUNCHOUT_MESSAGE = true;
 
 (function () {
   window.blockInspect = true;
@@ -113,6 +117,21 @@ function formatDuration(milliseconds) {
   return `${hours}h ${minutes}m ${seconds}s`;
 }
 
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function normalizePhoneForWhatsApp(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (digits.length === 10) return `91${digits}`;
+  return digits;
+}
+
 function getHolidayByLocalDate(dateKey) {
   if (typeof window.getHolidayByDate === "function") {
     return window.getHolidayByDate(dateKey);
@@ -129,6 +148,7 @@ $(document).ready(function () {
     session: null,
     currentEmployee: null,
     workTimerInterval: null,
+    lateReminderShiftKey: "",
   };
 
   if (window.Notification && Notification.permission === "default") {
@@ -150,6 +170,88 @@ $(document).ready(function () {
 
   function clearPunchStatus() {
     $("#punchStatusHost").empty();
+  }
+
+  function getLatePunchOutTargets(employee) {
+    return {
+      email: String(ADMIN_NOTIFICATION_EMAIL || "").trim(),
+      whatsapp: normalizePhoneForWhatsApp(ADMIN_NOTIFICATION_WHATSAPP || ""),
+    };
+  }
+
+  function buildLatePunchOutMessage(employee, openShift, punchOutTime, workedHours) {
+    return [
+      "Late punch-out alert",
+      `Employee: ${employee.name || employee.id}`,
+      `Employee ID: ${employee.id}`,
+      `Punch in: ${formatDateTime(openShift.time)}`,
+      `Punch out: ${formatDateTime(punchOutTime)}`,
+      `Worked hours: ${workedHours.toFixed(2)}`,
+    ].join("\n");
+  }
+
+  function buildLatePunchOutLinks(employee, openShift, punchOutTime, workedHours) {
+    const targets = getLatePunchOutTargets(employee);
+    const message = buildLatePunchOutMessage(employee, openShift, punchOutTime, workedHours);
+    const subject = `Late punch-out alert - ${employee.id}`;
+
+    return {
+      email: targets.email
+        ? `mailto:${encodeURIComponent(targets.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`
+        : "",
+      message,
+      whatsapp: targets.whatsapp
+        ? `https://wa.me/${encodeURIComponent(targets.whatsapp)}?text=${encodeURIComponent(message)}`
+        : "",
+    };
+  }
+
+  function autoOpenLatePunchOutMessage(employee, openShift, punchOutTime, workedHours) {
+    if (!AUTO_OPEN_LATE_PUNCHOUT_MESSAGE) return;
+
+    const links = buildLatePunchOutLinks(employee, openShift, punchOutTime, workedHours);
+    if (links.whatsapp) {
+      window.open(links.whatsapp, "_blank", "noopener");
+    }
+
+    if (links.email) {
+      window.setTimeout(() => {
+        window.location.href = links.email;
+      }, links.whatsapp ? 400 : 0);
+    }
+  }
+
+  function renderLatePunchOutNotification(
+    employee,
+    openShift,
+    punchOutTime,
+    workedHours,
+    intro = "Punch out successful. Late punch-out message is ready."
+  ) {
+    const lateLinks = buildLatePunchOutLinks(employee, openShift, punchOutTime, workedHours);
+    const links = [];
+
+    if (lateLinks.whatsapp) {
+      links.push(
+        `<a class="ghost-link solid-ghost" target="_blank" rel="noopener" href="${lateLinks.whatsapp}">Send WhatsApp</a>`
+      );
+    }
+
+    if (lateLinks.email) {
+      links.push(
+        `<a class="ghost-link solid-ghost" href="${lateLinks.email}">Send Email</a>`
+      );
+    }
+
+    const safeMessage = escapeHtml(lateLinks.message).replace(/\n/g, "<br>");
+    const actionHtml = links.length
+      ? `<div class="btn-row" style="margin-top:10px;">${links.join("")}</div>`
+      : `<p style="margin:10px 0 0;">No email or WhatsApp number is saved for this alert.</p>`;
+
+    setPunchStatus(
+      `${intro}<br><small>${safeMessage}</small>${actionHtml}`,
+      "success"
+    );
   }
 
   function showAuthGate() {
@@ -178,6 +280,21 @@ $(document).ready(function () {
     function render() {
       const diff = new Date() - new Date(startTime);
       $("#workTimer").text(formatDuration(diff));
+
+      if (
+        state.currentEmployee &&
+        diff >= STANDARD_WORK_HOURS * 60 * 60 * 1000 &&
+        state.lateReminderShiftKey !== startTime
+      ) {
+        state.lateReminderShiftKey = startTime;
+        renderLatePunchOutNotification(
+          state.currentEmployee,
+          { time: startTime },
+          new Date().toISOString(),
+          diff / (1000 * 60 * 60),
+          `${STANDARD_WORK_HOURS} hours complete. WhatsApp/email message is ready.`
+        );
+      }
     }
 
     render();
@@ -373,13 +490,13 @@ $(document).ready(function () {
     if (openShift) {
       startWorkTimer(openShift.time);
       const workedHours = hoursBetween(openShift.time, new Date().toISOString());
-      const shouldAlert = workedHours >= 8;
+      const shouldAlert = workedHours >= STANDARD_WORK_HOURS;
       $("#bell-badge").css("display", shouldAlert ? "inline-block" : "none");
 
       if (shouldAlert) {
         if (window.Notification && Notification.permission === "granted") {
           new Notification("Punch Out Reminder", {
-            body: "8 hours complete. Please punch out now.",
+            body: `${STANDARD_WORK_HOURS} hours complete. Please punch out now.`,
             icon: "ind_logo.png",
           });
         }
@@ -577,8 +694,8 @@ $(document).ready(function () {
       const now = new Date().toISOString();
       const workedHours = hoursBetween(openShift.time, now);
 
-      if (workedHours < 8) {
-        const reason = prompt("You are punching out before 8 hours. Please enter a reason:");
+      if (workedHours < STANDARD_WORK_HOURS) {
+        const reason = prompt(`You are punching out before ${STANDARD_WORK_HOURS} hours. Please enter a reason:`);
 
         if (!reason || !reason.trim()) {
           setPunchStatus("A reason is required for an early punch-out request.", "error");
@@ -616,7 +733,12 @@ $(document).ready(function () {
       });
 
       clearPunchStatus();
-      setPunchStatus("Punch out successful.", "success");
+      if (workedHours > STANDARD_WORK_HOURS) {
+        renderLatePunchOutNotification(employee, openShift, now, workedHours);
+        autoOpenLatePunchOutMessage(employee, openShift, now, workedHours);
+      } else {
+        setPunchStatus("Punch out successful.", "success");
+      }
       $("#wfhFlag").prop("checked", false);
       updateDashboardState();
     } catch (error) {
