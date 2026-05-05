@@ -285,7 +285,7 @@ $(document).ready(function () {
     alert("Employee updated successfully.");
   });
 
-  $(document).on("click", ".delete-emp", function () {
+  $(document).on("click", ".delete-emp", async function () {
     const employeeId = window.IndzoneAuth.normalizeEmployeeId($(this).data("id"));
     const confirmed = confirm(
       "Remove this employee and all related attendance, leave, and pending punch-out records?"
@@ -299,43 +299,44 @@ $(document).ready(function () {
       return recordId === employeeId;
     }
 
-    employeeAdminDb.ref().once("value").then((rootSnapshot) => {
-      const root = rootSnapshot.val() || {};
-      const updates = {};
+    async function removeMatchingChildren(path, matcher) {
+      const snapshot = await employeeAdminDb.ref(path).once("value");
+      const removals = [];
 
-      Object.entries(root.attendance || {}).forEach(([key, record]) => {
-        if (matchesEmployee(record)) updates[`attendance/${key}`] = null;
-      });
-
-      Object.entries(root.leaves || {}).forEach(([key, record]) => {
-        if (matchesEmployee(record)) updates[`leaves/${key}`] = null;
-      });
-
-      Object.entries(root.pending_punchout || {}).forEach(([key, record]) => {
-        if (matchesEmployee(record)) updates[`pending_punchout/${key}`] = null;
-      });
-
-      Object.entries(root.employees || {}).forEach(([key, record]) => {
-        const keyId = window.IndzoneAuth.normalizeEmployeeId(key);
-        if (keyId === employeeId || matchesEmployee(record)) {
-          updates[`employees/${key}`] = null;
+      snapshot.forEach((childSnapshot) => {
+        const key = childSnapshot.key;
+        const record = childSnapshot.val();
+        if (matcher(key, record)) {
+          removals.push(employeeAdminDb.ref(`${path}/${key}`).remove());
         }
       });
-      updates[`employees/${employeeId}`] = null;
 
-      return employeeAdminDb.ref().update(updates).then(() => {
-        const session = window.IndzoneAuth.getSession();
-        if (
-          window.IndzoneAuth.isEmployeeSession(session) &&
-          session.employeeId === employeeId
-        ) {
-          window.IndzoneAuth.clearSession();
-        }
-        alert("Employee and related data removed.");
-      });
-    }).catch(() => {
-      alert("Could not remove employee data. Please check your connection and try again.");
-    });
+      return Promise.all(removals);
+    }
+
+    try {
+      await Promise.all([
+        removeMatchingChildren("attendance", (key, record) => matchesEmployee(record)),
+        removeMatchingChildren("leaves", (key, record) => matchesEmployee(record)),
+        removeMatchingChildren("pending_punchout", (key, record) => matchesEmployee(record)),
+        removeMatchingChildren("employees", (key, record) => {
+          const keyId = window.IndzoneAuth.normalizeEmployeeId(key);
+          return keyId === employeeId || matchesEmployee(record);
+        }),
+      ]);
+
+      const session = window.IndzoneAuth.getSession();
+      if (
+        window.IndzoneAuth.isEmployeeSession(session) &&
+        session.employeeId === employeeId
+      ) {
+        window.IndzoneAuth.clearSession();
+      }
+      alert("Employee and related data removed.");
+    } catch (error) {
+      console.error("Employee delete failed:", error);
+      alert(`Could not remove employee data: ${error.message || error}`);
+    }
   });
 
   $(document).on("click", ".toggle-stored-pin", function () {
